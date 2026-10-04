@@ -96,6 +96,10 @@ class BaseGrid final : public wxWindow {
 
 	void OnDPIChanged(wxDPIChangedEvent &e);
 	void OnContextMenu(wxContextMenuEvent &evt);
+	/// Is the given x coordinate inside the character (actor) column?
+	bool IsActorColumnAt(int x) const;
+	/// Show the character picker and apply the choice to the selected lines
+	void ShowActorMenu(AssDialogue *clicked);
 	void OnHighlightVisibleChange(agi::OptionValue const& opt);
 	void OnKeyDown(wxKeyEvent &event);
 	void OnCharHook(wxKeyEvent &event);

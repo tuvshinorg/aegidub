@@ -48,16 +48,23 @@
 #include <libaegisub/util.h>
 
 #include <algorithm>
+#include <set>
+#include <string>
+#include <vector>
 
+#include <wx/control.h>
 #include <wx/dcbuffer.h>
 #include <wx/menu.h>
 #include <wx/scrolbar.h>
 #include <wx/sizer.h>
+#include <wx/textdlg.h>
 
 // Check menu.h for id range allocation before editing this enum
 enum {
 	GRID_SCROLLBAR = 1730,
-	MENU_SHOW_COL = (wxID_HIGHEST + 1) + 2000 // Needs 15 IDs after this
+	MENU_SHOW_COL = (wxID_HIGHEST + 1) + 2000, // Needs 15 IDs after this
+	MENU_ACTOR = (wxID_HIGHEST + 1) + 2100, // Needs MENU_ACTOR_COUNT IDs after this
+	MENU_ACTOR_COUNT = 300
 };
 
 BaseGrid::BaseGrid(wxWindow* parent, agi::Context *context)
@@ -136,7 +143,7 @@ void BaseGrid::OnSubtitlesCommit(int type) {
 	if (type == AssFile::COMMIT_NEW || type & AssFile::COMMIT_ORDER || type & AssFile::COMMIT_DIAG_ADDREM)
 		UpdateMaps();
 
-	if (type & AssFile::COMMIT_DIAG_META) {
+	if (type & (AssFile::COMMIT_DIAG_META | AssFile::COMMIT_EXTRADATA)) {
 		SetColumnWidths();
 		Refresh(false);
 		return;
@@ -453,6 +460,21 @@ void BaseGrid::OnMouseEvent(wxMouseEvent &event) {
 	if (event.ButtonDown() && OPT_GET("Subtitle/Grid/Focus Allow")->GetBool())
 		SetFocus();
 
+	// Clicking a cell in the character column opens the character picker
+	// rather than starting a drag-select
+	if (click && dlg && !holding && !shift && !ctrl && !alt && event.GetY() >= lineHeight && IsActorColumnAt(event.GetX())) {
+		auto const& selection = context->selectionController->GetSelectedSet();
+		int old_y_pos = yPos;
+		if (selection.count(dlg))
+			context->selectionController->SetActiveLine(dlg);
+		else
+			context->selectionController->SetSelectionAndActive({ dlg }, dlg);
+		ScrollTo(old_y_pos);
+		extendRow = row;
+		ShowActorMenu(dlg);
+		return;
+	}
+
 	if (holding) {
 		if (!event.LeftIsDown()) {
 			if (dlg)
@@ -563,6 +585,70 @@ void BaseGrid::OnContextMenu(wxContextMenuEvent &evt) {
 		}
 		PopupMenu(&menu);
 	}
+}
+
+bool BaseGrid::IsActorColumnAt(int x) const {
+	int left = 0;
+	for (auto const& column : columns) {
+		int right = left + column->Width();
+		if (x >= left && x < right)
+			return column->IsActorColumn();
+		left = right;
+	}
+	return false;
+}
+
+void BaseGrid::ShowActorMenu(AssDialogue *clicked) {
+	// Every character already used in the file, in alphabetical order
+	std::set<std::string> actors;
+	for (auto const& line : context->ass->Events) {
+		if (!line.Actor.get().empty())
+			actors.insert(line.Actor.get());
+	}
+
+	const int id_new = MENU_ACTOR;
+	const int id_clear = MENU_ACTOR + 1;
+	const int id_first = MENU_ACTOR + 2;
+	const size_t max_actors = MENU_ACTOR_COUNT - 2;
+
+	wxMenu menu;
+	std::vector<std::string> names;
+	for (auto const& actor : actors) {
+		if (names.size() >= max_actors) break;
+		auto item = menu.AppendCheckItem(id_first + names.size(), wxControl::EscapeMnemonics(to_wx(actor)));
+		item->Check(actor == clicked->Actor.get());
+		names.push_back(actor);
+	}
+	if (!names.empty())
+		menu.AppendSeparator();
+	menu.Append(id_new, _("New character..."));
+	menu.Append(id_clear, _("No character"));
+
+	int id = GetPopupMenuSelectionFromUser(menu);
+	if (id == wxID_NONE) return;
+
+	std::string actor;
+	if (id == id_new) {
+		wxString name = wxGetTextFromUser(_("Character name:"), _("New character"), "", this);
+		name.Trim(true).Trim(false);
+		// A comma would end the field when the line is written to the file
+		name.Replace(",", ";");
+		if (name.empty()) return;
+		actor = from_wx(name);
+	}
+	else if (id >= id_first && static_cast<size_t>(id - id_first) < names.size())
+		actor = names[id - id_first];
+	else if (id != id_clear)
+		return;
+
+	bool changed = false;
+	for (auto line : context->selectionController->GetSelectedSet()) {
+		if (line->Actor.get() == actor) continue;
+		line->Actor = actor;
+		changed = true;
+	}
+	if (changed)
+		context->ass->Commit(_("actor change"), AssFile::COMMIT_DIAG_META);
 }
 
 void BaseGrid::ScrollTo(int y) {

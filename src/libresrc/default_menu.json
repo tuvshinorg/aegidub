@@ -20,6 +20,9 @@
         {},
         { "command" : "audio/save/clip" },
         {},
+        { "command" : "tool/translate/ai/selected" },
+        { "command" : "tool/translate/original/restore" },
+        {},
         { "command" : "edit/line/cut" },
         { "command" : "edit/line/copy" },
         { "command" : "edit/line/paste" },
@@ -31,6 +34,13 @@
     "main/file" : "[Dummy, set in platform configs]",
     "main/edit" : "[Dummy, set in platform configs]",
     "main/subtitle" : "[Dummy, set in platform configs]",
+    "main/subtitle/ai translation" : [
+        { "command" : "tool/translate/ai/selected" },
+        { "command" : "tool/translate/ai/all" },
+        {},
+        { "command" : "tool/translate/original/restore" },
+        { "command" : "tool/translate/original/store" }
+    ],
     "main/subtitle/insert lines" : [
         { "command" : "subtitle/insert/before" },
         { "command" : "subtitle/insert/after" },

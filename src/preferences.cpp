@@ -416,6 +416,29 @@ void Automation(wxTreebook *book, Preferences *parent) {
 	p->SetSizerAndFit(p->sizer);
 }
 
+/// AI translation preferences page
+void AI_Translation(wxTreebook *book, Preferences *parent) {
+	auto p = new OptionPage(book, parent, _("AI Translation"));
+
+	auto api = p->PageSizer(_("API"));
+	const wxSize text_size(280, -1);
+	p->OptionAdd(api, _("API key"), "Tool/AI Translation/API Key")->SetMinSize(text_size);
+	p->OptionAdd(api, _("API base URL"), "Tool/AI Translation/Base URL")->SetMinSize(text_size);
+	p->OptionAdd(api, _("Model"), "Tool/AI Translation/Model")->SetMinSize(text_size);
+
+	auto translation = p->PageSizer(_("Translation"));
+	p->OptionAdd(translation, _("Target language"), "Tool/AI Translation/Target Language")->SetMinSize(text_size);
+	p->OptionAdd(translation, _("Lines per request"), "Tool/AI Translation/Batch Size", { .min = 1, .max = 200 });
+	p->OptionAdd(translation, _("Extra instructions"), "Tool/AI Translation/Instructions")->SetMinSize(text_size);
+
+	auto note = new wxStaticText(p, wxID_ANY, _("The API key is stored unencrypted in Aegisub's config file. Leave it empty to use the OPENAI_API_KEY environment variable instead."));
+	p->sizer->Fit(p);
+	note->Wrap(400);
+	p->sizer->Add(note, 0, wxALL, 5);
+
+	p->SetSizerAndFit(p->sizer);
+}
+
 /// Advanced preferences page
 void Advanced(wxTreebook *book, Preferences *parent) {
 	auto p = new OptionPage(book, parent, _("Advanced"));
@@ -812,6 +835,7 @@ Preferences::Preferences(wxWindow *parent): wxDialog(parent, -1, _("Preferences"
 	new Interface_Hotkeys(book, this);
 	Backup(book, this);
 	Automation(book, this);
+	AI_Translation(book, this);
 	Advanced(book, this);
 	Advanced_Audio(book, this);
 	Advanced_Video(book, this);

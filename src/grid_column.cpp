@@ -21,10 +21,13 @@
 #include "compat.h"
 #include "include/aegisub/context.h"
 #include "options.h"
+#include "original_text.h"
 #include "video_controller.h"
 
 #include <libaegisub/character_count.h>
 
+#include <algorithm>
+#include <wx/control.h>
 #include <wx/dc.h>
 
 void WidthHelper::Age() {
@@ -227,16 +230,56 @@ struct GridColumnEffect final : GridColumn {
 };
 
 struct GridColumnActor final : GridColumn {
-	COLUMN_HEADER(_("Actor"))
-	COLUMN_DESCRIPTION(_("Actor"))
+	COLUMN_HEADER(_("Character"))
+	COLUMN_DESCRIPTION(_("Character (Actor)"))
 	bool Centered() const override { return false; }
+	bool IsActorColumn() const override { return true; }
 
 	wxString Value(const AssDialogue *d, const agi::Context *) const override {
 		return to_wx(d->Actor);
 	}
 
 	int Width(const agi::Context *c, WidthHelper &helper) const override {
-		return max_width(&AssDialogue::Actor, c->ass->Events, helper);
+		// Never collapse to nothing: the cell is what the user clicks on to
+		// assign a character to a line
+		return std::max(max_width(&AssDialogue::Actor, c->ass->Events, helper), helper(L"XXXXXXXX"));
+	}
+};
+
+/// Pre-translation text of the line, as stored by the translation commands
+struct GridColumnOriginal final : GridColumn {
+	COLUMN_HEADER(_("Original"))
+	COLUMN_DESCRIPTION(_("Original Text"))
+	bool Centered() const override { return false; }
+	bool RefreshOnTextChange() const override { return true; }
+
+	wxString Value(const AssDialogue *d, const agi::Context *c) const override {
+		if (d->ExtradataIds.get().empty()) return wxString();
+		wxString str = to_wx(original_text::Get(c->ass.get(), d));
+		if (str.size() > 512)
+			str = str.Left(512) + "...";
+		return str;
+	}
+
+	int Width(const agi::Context *c, WidthHelper &helper) const override {
+		// Hidden entirely until at least one line has an original text
+		int w = 0;
+		const int cap = helper(L"x") * 45;
+		for (AssDialogue const& line : c->ass->Events) {
+			if (line.ExtradataIds.get().empty()) continue;
+			auto text = original_text::Get(c->ass.get(), &line);
+			if (text.empty()) continue;
+			w = std::max(w, std::min(cap, helper(text)));
+			if (w >= cap) break;
+		}
+		return w;
+	}
+
+	void Paint(wxDC &dc, int x, int y, const AssDialogue *d, const agi::Context *c) const override {
+		wxString str = Value(d, c);
+		if (str.empty()) return;
+		// The grid does not clip cells, so shorten the text to fit instead
+		dc.DrawText(wxControl::Ellipsize(str, dc, wxELLIPSIZE_END, std::max(0, width - 8), wxELLIPSIZE_FLAGS_NONE), x + 4, y + 2);
 	}
 };
 
@@ -411,16 +454,17 @@ std::unique_ptr<GridColumn> make() {
 std::vector<std::unique_ptr<GridColumn>> GetGridColumns() {
 	std::vector<std::unique_ptr<GridColumn>> ret;
 	ret.push_back(make<GridColumnLineNumber>());
+	ret.push_back(make<GridColumnActor>());
 	ret.push_back(make<GridColumnLayer>());
 	ret.push_back(make<GridColumnStartTime>());
 	ret.push_back(make<GridColumnEndTime>());
 	ret.push_back(make<GridColumnCPS>());
 	ret.push_back(make<GridColumnStyle>());
-	ret.push_back(make<GridColumnActor>());
 	ret.push_back(make<GridColumnEffect>());
 	ret.push_back(make<GridColumnMarginLeft>());
 	ret.push_back(make<GridColumnMarginRight>());
 	ret.push_back(make<GridColumnMarginVert>());
+	ret.push_back(make<GridColumnOriginal>());
 	ret.push_back(make<GridColumnText>());
 	return ret;
 }

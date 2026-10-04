@@ -414,7 +414,7 @@ endif
 conf_meson = configuration_data()
 conf_meson.set('DEFAULT_PLAYER_AUDIO', def_audio)
 
-if get_option('enable_update_checker')
+if true # libcurl is always needed (AI translation)
     curl_disable = [
         'tool', 'tests', 'unittests',
         'dict', 'file', 'ftp', 'gopher', 'imap', 'ipfs', 'ldap', 'ldaps',

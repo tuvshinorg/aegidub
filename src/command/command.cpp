@@ -87,6 +87,7 @@ void init_subtitle();
 void init_time();
 void init_timecode();
 void init_tool();
+void init_translate();
 void init_video();
 void init_visual_tools();
 
@@ -104,6 +105,7 @@ void init_builtin_commands() {
 	init_time();
 	init_timecode();
 	init_tool();
+	init_translate();
 	init_video();
 	init_visual_tools();
 }

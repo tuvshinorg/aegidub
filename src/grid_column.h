@@ -64,6 +64,8 @@ public:
 	virtual bool Centered() const { return false; }
 	virtual bool CanHide() const { return true; }
 	virtual bool RefreshOnTextChange() const { return false; }
+	/// Is this the column used to pick the character (actor) of a line?
+	virtual bool IsActorColumn() const { return false; }
 
 	virtual wxString const& Header() const = 0;
 	virtual wxString const& Description() const = 0;

@@ -6,6 +6,7 @@ Author: Terry Caton
 
 ***********************************************/
 
+#include <cstdint>
 #include "libaegisub/cajun/reader.h"
 
 #include <algorithm>
@@ -217,7 +218,57 @@ void Reader::MatchString(std::string& string, InputStream& inputStream) {
 				case 'n':  string.push_back('\n'); break;
 				case 'r':  string.push_back('\r'); break;
 				case 't':  string.push_back('\t'); break;
-				case 'u':  // TODO: what do we do with this?
+				case 'u': {
+					auto read_hex4 = [&]() -> uint32_t {
+						uint32_t v = 0;
+						for (int i = 0; i < 4; ++i) {
+							if (inputStream.EOS())
+								throw ScanException("Unexpected end of \\u escape", inputStream.GetLocation());
+							char h = inputStream.Get();
+							v <<= 4;
+							if (h >= '0' && h <= '9') v |= h - '0';
+							else if (h >= 'a' && h <= 'f') v |= h - 'a' + 10;
+							else if (h >= 'A' && h <= 'F') v |= h - 'A' + 10;
+							else throw ScanException("Invalid hex digit in \\u escape", inputStream.GetLocation());
+						}
+						return v;
+					};
+					uint32_t cp = read_hex4();
+					// Surrogate pair
+					if (cp >= 0xD800 && cp <= 0xDBFF && !inputStream.EOS() && inputStream.Peek() == '\\') {
+						inputStream.Get();
+						if (!inputStream.EOS() && inputStream.Get() == 'u') {
+							uint32_t lo = read_hex4();
+							if (lo >= 0xDC00 && lo <= 0xDFFF)
+								cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+							else
+								cp = 0xFFFD;
+						}
+						else
+							cp = 0xFFFD;
+					}
+					else if (cp >= 0xD800 && cp <= 0xDFFF)
+						cp = 0xFFFD;
+
+					if (cp < 0x80)
+						string.push_back(static_cast<char>(cp));
+					else if (cp < 0x800) {
+						string.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+						string.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+					}
+					else if (cp < 0x10000) {
+						string.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+						string.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+						string.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+					}
+					else {
+						string.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+						string.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+						string.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+						string.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+					}
+					break;
+				}
 				default:
 					throw ScanException(std::string("Unrecognized escape sequence found in string: \\") + c, inputStream.GetLocation());
 			}

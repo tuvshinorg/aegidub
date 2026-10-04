@@ -45,6 +45,7 @@
         { "command" : "tool/style/manager" },
         { "command" : "tool/style/assistant" },
         { "command" : "tool/translation_assistant" },
+        { "submenu" : "main/subtitle/ai translation", "text" : "AI Translation" },
         { "command" : "tool/resampleres" },
         { "command" : "subtitle/spellcheck" },
         {},
