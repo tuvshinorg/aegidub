@@ -43,6 +43,19 @@ if (Test-Path $gitVersionHeaderPath) {
   }
 }
 
+# Defaults for repositories without any semver tags (e.g. forks, shallow
+# clones). Without these the tag lookup below can leave the resource version
+# undefined, which breaks res.rc. Mirrors the defaults in version.sh.
+if (!$version.ContainsKey('RESOURCE_BASE_VERSION')) {
+  $version['RESOURCE_BASE_VERSION'] = @(0, 0, 0)
+}
+if (!$version.ContainsKey('INSTALLER_VERSION')) {
+  $version['INSTALLER_VERSION'] = '0.0.0'
+}
+if (!$version.ContainsKey('TAGGED_RELEASE')) {
+  $version['TAGGED_RELEASE'] = $false
+}
+
 $gitRevision = $lastSvnRevision + ((git -C $repositoryRootPath log --pretty=oneline "$($lastSvnHash)..HEAD" 2>$null | Measure-Object).Count)
 $gitBranch = [string](git -C $repositoryRootPath symbolic-ref --short HEAD 2>$null)
 if ([string]::IsNullOrEmpty($gitBranch)) {
