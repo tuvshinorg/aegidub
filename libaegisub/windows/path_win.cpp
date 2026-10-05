@@ -43,8 +43,8 @@ namespace agi {
 void Path::FillPlatformSpecificPaths() {
 	SetToken("?temp", agi::fs::path(std::filesystem::temp_directory_path()));
 
-	SetToken("?user", WinGetFolderPath(CSIDL_APPDATA)/"Aegisub");
-	SetToken("?local", WinGetFolderPath(CSIDL_LOCAL_APPDATA)/"Aegisub");
+	SetToken("?user", WinGetFolderPath(CSIDL_APPDATA)/"aegidub");
+	SetToken("?local", WinGetFolderPath(CSIDL_LOCAL_APPDATA)/"aegidub");
 
 	std::wstring filename(MAX_PATH + 1, L'\0');
 	while (static_cast<DWORD>(filename.size()) == GetModuleFileNameW(nullptr, &filename[0], filename.size()))

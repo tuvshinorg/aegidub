@@ -88,6 +88,7 @@ AudioKaraoke::AudioKaraoke(wxWindow *parent, agi::Context *c)
 	split_area->Bind(wxEVT_LEFT_DOWN, &AudioKaraoke::OnMouse, this);
 	split_area->Bind(wxEVT_LEFT_UP, &AudioKaraoke::OnMouse, this);
 	split_area->Bind(wxEVT_MOTION, &AudioKaraoke::OnMouse, this);
+	split_area->Bind(wxEVT_MOUSE_CAPTURE_LOST, [this](wxMouseCaptureLostEvent&) { scroll_timer.Stop(); });
 	split_area->Bind(wxEVT_LEAVE_WINDOW, &AudioKaraoke::OnMouse, this);
 	split_area->Bind(wxEVT_CONTEXT_MENU, &AudioKaraoke::OnContextMenu, this);
 	scroll_timer.Bind(wxEVT_TIMER, &AudioKaraoke::OnScrollTimer, this);

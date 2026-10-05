@@ -27,6 +27,8 @@
         "audio/karaoke"
     ],
     "main" : [
+        "app/projects",
+        "",
         "subtitle/new",
         "subtitle/open",
         "subtitle/save",
@@ -53,6 +55,13 @@
         "time/shift",
         "tool/style/assistant",
         "tool/translation_assistant",
+        "tool/speakers/detect/all",
+        "tool/voice/cast",
+        "tool/emotion/detect/all",
+        "tool/dub/preview",
+        "tool/dub/shorten",
+        "tool/dub/generate",
+        "tool/dub/render",
         "tool/resampleres",
         "tool/time/postprocess",
         "tool/time/kanji",

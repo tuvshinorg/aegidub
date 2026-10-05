@@ -431,7 +431,35 @@ void AI_Translation(wxTreebook *book, Preferences *parent) {
 	p->OptionAdd(translation, _("Lines per request"), "Tool/AI Translation/Batch Size", { .min = 1, .max = 200 });
 	p->OptionAdd(translation, _("Extra instructions"), "Tool/AI Translation/Instructions")->SetMinSize(text_size);
 
-	auto note = new wxStaticText(p, wxID_ANY, _("The API key is stored unencrypted in Aegisub's config file. Leave it empty to use the OPENAI_API_KEY environment variable instead."));
+	auto note = new wxStaticText(p, wxID_ANY, _("The API key is stored unencrypted in aegidub's config file. Leave it empty to use the OPENAI_API_KEY environment variable instead."));
+	p->sizer->Fit(p);
+	note->Wrap(400);
+	p->sizer->Add(note, 0, wxALL, 5);
+
+	p->SetSizerAndFit(p->sizer);
+}
+
+/// Voice cast (ElevenLabs) preferences page
+void Voice_Cast(wxTreebook *book, Preferences *parent) {
+	auto p = new OptionPage(book, parent, _("Voice Cast"));
+
+	auto api = p->PageSizer(_("ElevenLabs"));
+	const wxSize text_size(280, -1);
+	p->OptionAdd(api, _("API key"), "Tool/Voice Cast/API Key")->SetMinSize(text_size);
+	p->OptionAdd(api, _("Model"), "Tool/Voice Cast/Model")->SetMinSize(text_size);
+	p->OptionAdd(api, _("Language code"), "Tool/Voice Cast/Language Code")->SetMinSize(text_size);
+	p->OptionAdd(api, _("Lines generated at once"), "Tool/Voice Cast/Concurrent Requests", { .min = 1, .max = 10 });
+	p->OptionAdd(api, _("Speed up speech that runs long by up to (%)"), "Tool/Voice Cast/Max Speed Up", { .min = 0, .max = 50 });
+
+	auto projects = p->PageSizer(_("Projects"));
+	p->OptionAdd(projects, _("Show the projects when starting without a file"), "Tool/Projects/Show On Startup");
+	p->OptionBrowse(projects, _("Projects folder (empty: Documents\\aegidub Projects)"), "Tool/Projects/Folder");
+
+	auto render = p->PageSizer(_("Rendering"));
+	p->OptionAdd(render, _("Separate voices on an NVIDIA GPU when Python demucs is installed"), "Tool/Dub Render/Use GPU If Available");
+	p->OptionAdd(render, _("Python for GPU separation"), "Tool/Dub Render/Python")->SetMinSize(text_size);
+
+	auto note = new wxStaticText(p, wxID_ANY, _("The API key is stored unencrypted in aegidub's config file. Leave it empty to use the ELEVENLABS_API_KEY environment variable instead. Auto-detecting voices uses the model from the AI Translation page. Without a GPU, voices are separated by the built-in separator on the CPU."));
 	p->sizer->Fit(p);
 	note->Wrap(400);
 	p->sizer->Add(note, 0, wxALL, 5);
@@ -836,6 +864,7 @@ Preferences::Preferences(wxWindow *parent): wxDialog(parent, -1, _("Preferences"
 	Backup(book, this);
 	Automation(book, this);
 	AI_Translation(book, this);
+	Voice_Cast(book, this);
 	Advanced(book, this);
 	Advanced_Audio(book, this);
 	Advanced_Video(book, this);

@@ -78,6 +78,7 @@ void init_app();
 void init_audio();
 void init_automation();
 void init_command();
+void init_dub();
 void init_edit();
 void init_grid();
 void init_help();
@@ -96,6 +97,7 @@ void init_builtin_commands() {
 	init_app();
 	init_audio();
 	init_automation();
+	init_dub();
 	init_edit();
 	init_grid();
 	init_help();

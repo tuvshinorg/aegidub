@@ -46,15 +46,31 @@ namespace openai {
 		std::string text;
 	};
 
+	/// Send one system + user message pair in JSON mode
+	/// @return The model's reply, which should be a JSON object
+	/// @throws Error on network, HTTP, or response format errors
+	std::string CompleteJson(Config const& config,
+		std::string const& system,
+		std::string const& user,
+		std::function<bool()> const& cancelled);
+
+	struct Translation {
+		/// Subtitle text, as shown on screen
+		std::string text;
+		/// The same line written out for a speech engine, or empty when the
+		/// text can be read as it is
+		std::string spoken;
+	};
+
 	/// Translate a batch of subtitle lines
 	/// @param config    API settings
 	/// @param lines     Lines to translate
 	/// @param context   Preceding (source, translation) pairs given as context only
 	/// @param cancelled Polled during the request; return true to abort
-	/// @return Map of line id to translated text. Lines the model failed to
+	/// @return Map of line id to translation. Lines the model failed to
 	///         return are simply absent.
 	/// @throws Error on network, HTTP, or response format errors
-	std::map<int, std::string> Translate(Config const& config,
+	std::map<int, Translation> Translate(Config const& config,
 		std::vector<Line> const& lines,
 		std::vector<std::pair<std::string, std::string>> const& context,
 		std::function<bool()> const& cancelled);

@@ -38,6 +38,9 @@
 #include "audio_box.h"
 #include "compat.h"
 #include "grid_column.h"
+#include "dub_settings.h"
+#include "line_emotion.h"
+#include "line_spoken.h"
 #include "options.h"
 #include "project.h"
 #include "utils.h"
@@ -64,7 +67,8 @@ enum {
 	GRID_SCROLLBAR = 1730,
 	MENU_SHOW_COL = (wxID_HIGHEST + 1) + 2000, // Needs 15 IDs after this
 	MENU_ACTOR = (wxID_HIGHEST + 1) + 2100, // Needs MENU_ACTOR_COUNT IDs after this
-	MENU_ACTOR_COUNT = 300
+	MENU_ACTOR_COUNT = 300,
+	MENU_EMOTION = (wxID_HIGHEST + 1) + 2400 // Needs 50 IDs after this
 };
 
 BaseGrid::BaseGrid(wxWindow* parent, agi::Context *context)
@@ -128,6 +132,7 @@ BEGIN_EVENT_TABLE(BaseGrid,wxWindow)
 	EVT_SIZE(BaseGrid::OnSize)
 	EVT_COMMAND_SCROLL(GRID_SCROLLBAR,BaseGrid::OnScroll)
 	EVT_MOUSE_EVENTS(BaseGrid::OnMouseEvent)
+	EVT_MOUSE_CAPTURE_LOST(BaseGrid::OnMouseCaptureLost)
 	EVT_KEY_DOWN(BaseGrid::OnKeyDown)
 	EVT_CHAR_HOOK(BaseGrid::OnCharHook)
 	EVT_MENU_RANGE(MENU_SHOW_COL,MENU_SHOW_COL+15,BaseGrid::OnShowColMenu)
@@ -143,7 +148,8 @@ void BaseGrid::OnSubtitlesCommit(int type) {
 	if (type == AssFile::COMMIT_NEW || type & AssFile::COMMIT_ORDER || type & AssFile::COMMIT_DIAG_ADDREM)
 		UpdateMaps();
 
-	if (type & (AssFile::COMMIT_DIAG_META | AssFile::COMMIT_EXTRADATA)) {
+	// Script info holds the voice cast, which the Fit column depends on
+	if (type & (AssFile::COMMIT_DIAG_META | AssFile::COMMIT_EXTRADATA | AssFile::COMMIT_SCRIPTINFO)) {
 		SetColumnWidths();
 		Refresh(false);
 		return;
@@ -460,9 +466,15 @@ void BaseGrid::OnMouseEvent(wxMouseEvent &event) {
 	if (event.ButtonDown() && OPT_GET("Subtitle/Grid/Focus Allow")->GetBool())
 		SetFocus();
 
-	// Clicking a cell in the character column opens the character picker
-	// rather than starting a drag-select
-	if (click && dlg && !holding && !shift && !ctrl && !alt && event.GetY() >= lineHeight && IsActorColumnAt(event.GetX())) {
+	// Clicking a cell in the character, emotion or spoken column opens its
+	// editor rather than starting a drag-select
+	const GridColumn *picker_column = nullptr;
+	if (click && dlg && !holding && !shift && !ctrl && !alt && event.GetY() >= lineHeight) {
+		picker_column = ColumnAt(event.GetX());
+		if (picker_column && !picker_column->IsActorColumn() && !picker_column->IsEmotionColumn() && !picker_column->IsSpokenColumn())
+			picker_column = nullptr;
+	}
+	if (picker_column) {
 		auto const& selection = context->selectionController->GetSelectedSet();
 		int old_y_pos = yPos;
 		if (selection.count(dlg))
@@ -471,7 +483,12 @@ void BaseGrid::OnMouseEvent(wxMouseEvent &event) {
 			context->selectionController->SetSelectionAndActive({ dlg }, dlg);
 		ScrollTo(old_y_pos);
 		extendRow = row;
-		ShowActorMenu(dlg);
+		if (picker_column->IsActorColumn())
+			ShowActorMenu(dlg);
+		else if (picker_column->IsEmotionColumn())
+			ShowEmotionMenu(dlg);
+		else
+			EditSpokenText(dlg);
 		return;
 	}
 
@@ -571,6 +588,13 @@ void BaseGrid::OnMouseEvent(wxMouseEvent &event) {
 	event.Skip();
 }
 
+void BaseGrid::OnMouseCaptureLost(wxMouseCaptureLostEvent &) {
+	// Another window took the mouse in the middle of a drag-select, e.g. a
+	// dialog opening; end the drag rather than wait for a button release
+	// that will never come
+	holding = false;
+}
+
 void BaseGrid::OnContextMenu(wxContextMenuEvent &evt) {
 	wxPoint pos = evt.GetPosition();
 	if (pos == wxDefaultPosition || ScreenToClient(pos).y > lineHeight) {
@@ -587,15 +611,72 @@ void BaseGrid::OnContextMenu(wxContextMenuEvent &evt) {
 	}
 }
 
-bool BaseGrid::IsActorColumnAt(int x) const {
+const GridColumn *BaseGrid::ColumnAt(int x) const {
 	int left = 0;
 	for (auto const& column : columns) {
 		int right = left + column->Width();
 		if (x >= left && x < right)
-			return column->IsActorColumn();
+			return column.get();
 		left = right;
 	}
-	return false;
+	return nullptr;
+}
+
+void BaseGrid::EditSpokenText(AssDialogue *clicked) {
+	std::string current = line_spoken::Get(context->ass.get(), clicked);
+	// Not wxGetTextFromUser: it can't tell Cancel from an emptied field
+	wxTextEntryDialog dialog(this,
+		_("How the speech engine should read this line, with numbers, symbols and foreign words written out.\nLeave it empty to read the subtitle text as it is."),
+		_("Spoken text"), to_wx(current.empty() ? dub::SpokenText(clicked->Text.get()) : current));
+	if (dialog.ShowModal() != wxID_OK) return;
+	std::string spoken = from_wx(dialog.GetValue());
+	if (spoken == current) return;
+	line_spoken::Set(context->ass.get(), clicked, spoken);
+	context->ass->Commit(_("spoken text change"), AssFile::COMMIT_EXTRADATA);
+}
+
+void BaseGrid::ShowEmotionMenu(AssDialogue *clicked) {
+	auto const& presets = line_emotion::Presets();
+	std::string current = line_emotion::Get(context->ass.get(), clicked);
+
+	const int id_custom = MENU_EMOTION;
+	const int id_clear = MENU_EMOTION + 1;
+	const int id_first = MENU_EMOTION + 2;
+
+	wxMenu menu;
+	for (size_t i = 0; i < presets.size() && i < 48; ++i) {
+		std::string tag = "[" + presets[i] + "]";
+		menu.AppendCheckItem(id_first + i, wxControl::EscapeMnemonics(to_wx(tag)))->Check(tag == current);
+	}
+	menu.AppendSeparator();
+	menu.Append(id_custom, _("Custom..."));
+	menu.Append(id_clear, _("No emotion"));
+
+	int id = GetPopupMenuSelectionFromUser(menu);
+	if (id == wxID_NONE) return;
+
+	std::string tags;
+	if (id == id_custom) {
+		wxString value = wxGetTextFromUser(
+			_("Emotion tags for ElevenLabs, e.g. \"sad, whispers\" or \"[laughs softly]\":"),
+			_("Custom emotion"), to_wx(current), this);
+		if (value.empty()) return;
+		tags = line_emotion::Normalize(from_wx(value));
+		if (tags.empty()) return;
+	}
+	else if (id >= id_first && static_cast<size_t>(id - id_first) < presets.size())
+		tags = "[" + presets[id - id_first] + "]";
+	else if (id != id_clear)
+		return;
+
+	bool changed = false;
+	for (auto line : context->selectionController->GetSelectedSet()) {
+		if (line_emotion::Get(context->ass.get(), line) == tags) continue;
+		line_emotion::Set(context->ass.get(), line, tags);
+		changed = true;
+	}
+	if (changed)
+		context->ass->Commit(_("emotion change"), AssFile::COMMIT_EXTRADATA);
 }
 
 void BaseGrid::ShowActorMenu(AssDialogue *clicked) {

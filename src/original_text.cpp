@@ -14,63 +14,26 @@
 
 #include "original_text.h"
 
-#include "ass_dialogue.h"
-#include "ass_file.h"
-
-#include <algorithm>
-#include <vector>
+#include "line_extradata.h"
 
 namespace {
 const std::string_view extradata_key = "aegidub_original";
-
-/// IDs of the line's extradata entries which are not original-text entries
-std::vector<uint32_t> other_ids(const AssFile *file, const AssDialogue *line) {
-	std::vector<uint32_t> ids = line->ExtradataIds.get();
-	if (ids.empty()) return ids;
-	std::sort(ids.begin(), ids.end());
-	for (auto const& entry : file->GetExtradata(ids)) {
-		if (entry.key == extradata_key)
-			ids.erase(std::remove(ids.begin(), ids.end(), entry.id), ids.end());
-	}
-	return ids;
-}
 }
 
 namespace original_text {
 bool Has(const AssFile *file, const AssDialogue *line) {
-	auto const& ids = line->ExtradataIds.get();
-	if (ids.empty()) return false;
-	std::vector<uint32_t> sorted = ids;
-	std::sort(sorted.begin(), sorted.end());
-	for (auto const& entry : file->GetExtradata(sorted)) {
-		if (entry.key == extradata_key)
-			return true;
-	}
-	return false;
+	return line_extradata::Has(file, line, extradata_key);
 }
 
 std::string Get(const AssFile *file, const AssDialogue *line) {
-	auto const& ids = line->ExtradataIds.get();
-	if (ids.empty()) return {};
-	std::vector<uint32_t> sorted = ids;
-	std::sort(sorted.begin(), sorted.end());
-	for (auto const& entry : file->GetExtradata(sorted)) {
-		if (entry.key == extradata_key)
-			return entry.value;
-	}
-	return {};
+	return line_extradata::Get(file, line, extradata_key);
 }
 
 void Set(AssFile *file, AssDialogue *line, std::string_view text) {
-	auto ids = other_ids(file, line);
-	ids.push_back(file->AddExtradata(extradata_key, text));
-	std::sort(ids.begin(), ids.end());
-	ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-	line->ExtradataIds = std::move(ids);
+	line_extradata::Set(file, line, extradata_key, text);
 }
 
 void Clear(AssFile *file, AssDialogue *line) {
-	if (line->ExtradataIds.get().empty()) return;
-	line->ExtradataIds = other_ids(file, line);
+	line_extradata::Clear(file, line, extradata_key);
 }
 }

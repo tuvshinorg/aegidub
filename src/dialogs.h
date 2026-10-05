@@ -76,3 +76,6 @@ void ShowSpellcheckerDialog(agi::Context *c);
 void ShowStyleManagerDialog(agi::Context *c);
 void ShowTimingProcessorDialog(agi::Context *c);
 void ShowVideoDetailsDialog(agi::Context *c);
+void ShowVoiceCastDialog(agi::Context *c);
+void ShowDubRenderDialog(agi::Context *c);
+void ShowProjectsDialog(agi::Context *c);

@@ -12,46 +12,20 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#include "json_util.h"
 #include "openai_client.h"
 
-#include <libaegisub/cajun/elements.h>
-#include <libaegisub/cajun/reader.h>
-#include <libaegisub/cajun/writer.h>
+#include "http_request.h"
+#include "line_spoken.h"
 
-#include <curl/curl.h>
 
 #include <cstdint>
 #include <sstream>
 
 namespace {
-size_t write_cb(char *contents, size_t size, size_t nmemb, void *userp) {
-	static_cast<std::string *>(userp)->append(contents, size * nmemb);
-	return size * nmemb;
-}
-
-int progress_cb(void *userp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
-	auto cancelled = static_cast<const std::function<bool()> *>(userp);
-	return (*cancelled && (*cancelled)()) ? 1 : 0;
-}
-
-std::string to_json(json::UnknownElement const& value) {
-	std::ostringstream ss;
-	agi::JsonWriter::Write(value, ss);
-	return ss.str();
-}
-
-json::UnknownElement parse_json(std::string const& str) {
-	std::istringstream ss(str);
-	json::UnknownElement root;
-	json::Reader::Read(root, ss);
-	return root;
-}
-
-const json::UnknownElement *find(json::Object const& obj, const char *key) {
-	auto it = obj.find(key);
-	return it == obj.end() ? nullptr : &it->second;
-}
-
+using json_util::parse_json;
+using json_util::to_json;
+using json_util::find;
 std::string system_prompt(openai::Config const& config) {
 	std::string prompt =
 		"You are a professional subtitle translator preparing a script for voice dubbing.\n"
@@ -64,8 +38,11 @@ std::string system_prompt(openai::Config const& config) {
 		"- Copy ASS override blocks in {curly braces} unchanged and keep them at the "
 		"matching position. Keep the line break markers \\N, \\n and \\h exactly as written.\n"
 		"- Translate line by line. Never merge, split, drop, add or reorder lines.\n"
+		"- Keep numbers and symbols in `text` as a viewer would expect to read them on screen.\n"
+		+ std::string(line_spoken::PromptRules()) +
 		"- Reply with a single JSON object of the form "
-		"{\"lines\":[{\"id\":<id>,\"text\":\"<translation>\"}]} containing exactly the ids you were given.";
+		"{\"lines\":[{\"id\":<id>,\"text\":\"<translation>\",\"spoken\":\"<only when needed>\"}]} "
+		"containing exactly the ids you were given.";
 	if (!config.instructions.empty())
 		prompt += "\nAdditional instructions:\n" + config.instructions;
 	return prompt;
@@ -99,18 +76,18 @@ std::string user_prompt(std::vector<openai::Line> const& lines, std::vector<std:
 	return to_json(json::UnknownElement(std::move(root)));
 }
 
-std::string request_body(openai::Config const& config, std::vector<openai::Line> const& lines, std::vector<std::pair<std::string, std::string>> const& context) {
+std::string request_body(openai::Config const& config, std::string const& system, std::string const& user) {
 	json::Array messages;
 	{
 		json::Object msg;
 		msg.emplace("role", json::UnknownElement("system"));
-		msg.emplace("content", json::UnknownElement(system_prompt(config)));
+		msg.emplace("content", json::UnknownElement(system));
 		messages.emplace_back(std::move(msg));
 	}
 	{
 		json::Object msg;
 		msg.emplace("role", json::UnknownElement("user"));
-		msg.emplace("content", json::UnknownElement(user_prompt(lines, context)));
+		msg.emplace("content", json::UnknownElement(user));
 		messages.emplace_back(std::move(msg));
 	}
 
@@ -140,51 +117,24 @@ std::string api_error_message(std::string const& response) {
 }
 
 std::string http_post(openai::Config const& config, std::string const& body, std::function<bool()> const& cancelled) {
-	CURL *curl = curl_easy_init();
-	if (!curl)
-		throw openai::Error("Could not initialize curl");
-
 	std::string url = config.base_url;
 	while (!url.empty() && url.back() == '/')
 		url.pop_back();
 	url += "/chat/completions";
 
-	std::string auth = "Authorization: Bearer " + config.api_key;
-	curl_slist *headers = nullptr;
-	headers = curl_slist_append(headers, "Content-Type: application/json");
-	headers = curl_slist_append(headers, auth.c_str());
+	http::Response response;
+	try {
+		response = http::Request(url,
+			{"Content-Type: application/json", "Authorization: Bearer " + config.api_key},
+			&body, 600L, cancelled);
+	}
+	catch (http::Error const& e) {
+		throw openai::Error(std::string("Request failed: ") + e.what());
+	}
 
-	std::string response;
-	char error_buffer[CURL_ERROR_SIZE] = {0};
-
-	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, "aegidub");
-	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 30L);
-	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600L);
-	curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-	curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
-	curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &cancelled);
-
-	CURLcode res = curl_easy_perform(curl);
-	long status = 0;
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-	curl_slist_free_all(headers);
-	curl_easy_cleanup(curl);
-
-	if (res == CURLE_ABORTED_BY_CALLBACK)
-		throw openai::Error("Cancelled");
-	if (res != CURLE_OK)
-		throw openai::Error(std::string("Request failed: ") + (error_buffer[0] ? error_buffer : curl_easy_strerror(res)));
-	if (status < 200 || status >= 300)
-		throw openai::Error("API error " + std::to_string(status) + ": " + api_error_message(response));
-
-	return response;
+	if (response.status < 200 || response.status >= 300)
+		throw openai::Error("API error " + std::to_string(response.status) + ": " + api_error_message(response.body));
+	return response.body;
 }
 
 int element_to_int(json::UnknownElement const& el) {
@@ -195,15 +145,12 @@ int element_to_int(json::UnknownElement const& el) {
 }
 
 namespace openai {
-std::map<int, std::string> Translate(Config const& config,
-	std::vector<Line> const& lines,
-	std::vector<std::pair<std::string, std::string>> const& context,
+std::string CompleteJson(Config const& config,
+	std::string const& system,
+	std::string const& user,
 	std::function<bool()> const& cancelled)
 {
-	std::map<int, std::string> result;
-	if (lines.empty()) return result;
-
-	std::string response = http_post(config, request_body(config, lines, context), cancelled);
+	std::string response = http_post(config, request_body(config, system, user), cancelled);
 
 	try {
 		auto root = parse_json(response);
@@ -220,8 +167,28 @@ std::map<int, std::string> Translate(Config const& config,
 		json::Object const& message_obj = *message;
 		auto content = find(message_obj, "content");
 		if (!content) throw Error("Response has no content");
+		return static_cast<json::String const&>(*content);
+	}
+	catch (Error const&) {
+		throw;
+	}
+	catch (std::exception const& e) {
+		throw Error(std::string("Could not parse the API response: ") + e.what());
+	}
+}
 
-		auto content_root = parse_json(static_cast<json::String const&>(*content));
+std::map<int, Translation> Translate(Config const& config,
+	std::vector<Line> const& lines,
+	std::vector<std::pair<std::string, std::string>> const& context,
+	std::function<bool()> const& cancelled)
+{
+	std::map<int, Translation> result;
+	if (lines.empty()) return result;
+
+	std::string content = CompleteJson(config, system_prompt(config), user_prompt(lines, context), cancelled);
+
+	try {
+		auto content_root = parse_json(content);
 		json::Object const& content_obj = content_root;
 		auto out_lines = find(content_obj, "lines");
 		if (!out_lines) throw Error("Model reply has no \"lines\" array");
@@ -232,7 +199,13 @@ std::map<int, std::string> Translate(Config const& config,
 				auto id = find(entry_obj, "id");
 				auto text = find(entry_obj, "text");
 				if (!id || !text) continue;
-				result[element_to_int(*id)] = static_cast<json::String const&>(*text);
+				Translation translation;
+				translation.text = static_cast<json::String const&>(*text);
+				if (auto spoken = find(entry_obj, "spoken")) {
+					try { translation.spoken = static_cast<json::String const&>(*spoken); }
+					catch (json::Exception const&) { }
+				}
+				result[element_to_int(*id)] = std::move(translation);
 			}
 			catch (std::exception const&) {
 				// Skip malformed entries; the caller reports missing lines

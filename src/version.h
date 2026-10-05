@@ -44,5 +44,8 @@ const char *GetAegisubBuildCredit();
 bool GetIsOfficialRelease();
 /// Version number
 const char *GetVersionNumber();
+
+/// Version of the latest release tag this build includes, e.g. "1.2.0", or "0.0.0" if there is none
+const char *GetReleaseVersion();
 /// Get SVN revision
 int GetSVNRevision();

@@ -1,156 +1,92 @@
-# Aegisub
+# aegidub
 
-For binaries and general information [see the homepage](http://aegisub.org).
+**aegidub** is an AI dubbing editor built on [Aegisub](https://github.com/TypesettingTools/Aegisub). It takes a video and its subtitles and turns them into a dubbed video: it translates the lines, works out who says each one, gives every character a voice, directs the emotion, speaks the lines with [ElevenLabs](https://elevenlabs.io), and mixes the dub over the video's own background sound.
 
-The bug tracker can be found at https://github.com/TypesettingTools/Aegisub/issues.
+It was made for dubbing films and series into **Mongolian**, but works for any language your AI model and ElevenLabs voices support.
 
-Support is available on [Discord](https://discord.com/invite/AZaVyPr) or [IRC](irc://irc.rizon.net/aegisub).
+[Монгол хэлээр унших](README.mn.md)
 
-## Building Aegisub
+## What's the same as Aegisub
 
-### Windows
+aegidub keeps all of Aegisub. If you know Aegisub, you know aegidub:
 
-Prerequisites:
+- The same subtitle editor: the grid, the edit box, timing, styles, the audio waveform and spectrum, video playback with subtitles drawn by libass, visual typesetting tools, karaoke, Lua/MoonScript automation and every subtitle format Aegisub reads and writes.
+- `.ass` files stay compatible both ways. Everything aegidub adds (voices, emotions, the original text) is stored in places Aegisub keeps but ignores, so Aegisub and other players open aegidub's files normally.
+- The same hotkeys, menus and settings, plus new ones.
+- The same licence and credits: aegidub is a fork, and Aegisub's authors keep their copyright.
 
-1. Visual Studio (Community edition of any recent version is fine, needs the Windows SDK included)
-2. Python 3
-3. Meson
-4. CMake
+## What's different
 
-There are a few optional dependencies that must be installed and on your PATH:
+| Feature | What it does |
+|---|---|
+| **Projects** | A start screen like CapCut's: each video is a project card with a thumbnail, named by date and hash, e.g. `20261005-a1b2c3d4e5f6`. A project folder holds the subtitles, generated speech and renders. |
+| **AI Translate** | Translates lines with an OpenAI-compatible model, keeping the original text in an *Original* column so it can be restored or re-translated. |
+| **AI Detect Speakers** | Guesses who says each line from the dialogue and the show's characters, and fills the *Character* column. |
+| **Voice Cast** | Assigns an ElevenLabs voice to each character. *Auto-detect* casts from the voices ElevenLabs verified for Mongolian, matching gender, age and personality. *Play* speaks one of the character's own lines. |
+| **Series cast** | A `.cast.json` file shared by all episodes of a series, so characters keep their voices from episode to episode. |
+| **AI Detect Emotions** | Fills an *Emotion* column with ElevenLabs audio tags such as `[sad]` or `[whispers]`. Click a cell to change one. |
+| **Spoken text** | Numbers, symbols and foreign words are written out for the speech engine (`10:30` becomes "арван цаг гучин минут") while the subtitle shows `10:30`. |
+| **Generate Dub Track** | Speaks every line with its character's voice and emotion and builds one audio track timed to the subtitles. Unchanged lines are reused, so you only pay for what changed. |
+| **Fit column** | Like CPS, but measured on the real speech: how much of the time before the next line each line's audio takes. Red means it runs over. |
+| **AI Shorten Long Lines** | Rewrites lines that don't fit, shorter but with the same meaning, telling the model how long each one is and how long it may be. |
+| **Render Dubbed Video** | Separates the video's voices from its music and effects with **htdemucs**, mixes the dub over the background (optionally with the original voices quietly underneath), can remaster the loudness, and writes a new video with the dub as the default track. |
+| **Built-in voice separation** | htdemucs runs inside the program on the CPU, with nothing to install. If Python with demucs and an NVIDIA GPU is present it is used instead, about ten times faster. |
+| **Updates** | Checks this repository's GitHub releases only, and always asks before updating. Nothing about your computer is sent. |
 
-1. msgfmt, to build the translations (installing from https://mlocati.github.io/articles/gettext-iconv-windows.html seems to be the easiest option)
-2. InnoSetup, to build the regular installer (iscc.exe on your PATH)
-3. 7zip, to build the regular installer (7z.exe on your PATH)
-4. Moonscript, to build the regular installer (moonc.exe on your PATH)
+## The dubbing workflow
 
-All other dependencies are either stored in the repository or are included as submodules.
+1. **Projects → New project**: choose the video, and import subtitles if you have them.
+2. **AI Translate**, if the subtitles aren't in your language yet.
+3. **AI Detect Speakers**, then fix any wrong names in the *Character* column.
+4. **Voice Cast → Auto-detect voices**, listen with *Play*, and save the series cast.
+5. **AI Detect Emotions**, and adjust the *Emotion* column by ear with **Play Dub of Line**.
+6. **Generate Dub Track**, then **AI Shorten Long Lines** for anything red in the *Fit* column.
+7. **Render Dubbed Video**.
 
-Building:
+## Installing
 
-1. Clone Aegisub's repository: `git clone https://github.com/TypesettingTools/Aegisub.git`
-2. From the Visual Studio "x64 Native Tools Command Prompt", generate the build directory: `meson build -Ddefault_library=static` (if building for release, add `--buildtype=release`)
-3. Build with `cd build` and `ninja`
+Download `aegidub-…-x64-setup.exe` from the [releases](https://github.com/tuvshinorg/aegidub/releases) and run it. The installer installs the Microsoft Visual C++ runtime itself if the computer doesn't have a recent one.
 
-You should now have a binary: `aegisub.exe`.
+Requirements:
 
-Installer:
+- Windows 10 or 11, 64-bit, with a processor that supports AVX2 (most made since 2013) for the built-in voice separator.
+- An **OpenAI** API key (or any OpenAI-compatible service) for translation, speakers, casting, emotions and shortening: *Preferences → AI Translation*.
+- An **ElevenLabs** API key for the voices: *Preferences → Voice Cast*.
+- Optional, for fast voice separation: an NVIDIA GPU and Python with `demucs`, `torch` (CUDA) and `soundfile`.
 
-You can generate the installer with `ninja win-installer` after a successful build. This assumes a working internet connection and installation of the optional dependencies.
+The voice separation model (84 MB) is downloaded once, the first time it is needed.
 
-You can generate the portable zip with `ninja win-portable` after a successful build.
+## Privacy and costs
 
-### OS X
+- API keys are stored only in your own settings (`%APPDATA%\aegidub\config.json`) or environment variables (`OPENAI_API_KEY`, `ELEVENLABS_API_KEY`). They are never part of the program or the project files.
+- The AI features send subtitle text to the AI service you configure, and the voice features send it to ElevenLabs. Both charge for what you use. aegidub asks before every batch, and reuses generated speech so nothing is paid for twice.
+- Rendering and voice separation happen on your computer.
 
-A vaguely recent version of Xcode and the corresponding command-line tools are required.
+## Building from source (Windows)
 
-For personal usage, you can use pip and homebrew to install almost all of Aegisub's dependencies:
+Prerequisites: Visual Studio 2022 (or its Build Tools) with the Windows SDK, Python 3 and Meson (`pip install meson`). Ninja ships with Visual Studio.
 
-    pip3 install meson      # or brew install meson if you installed Python via brew
-    brew install cmake ninja pkg-config  libass boost zlib ffms2 fftw hunspell uchardet
-    export LDFLAGS="-L/usr/local/opt/icu4c/lib"
-    export CPPFLAGS="-I/usr/local/opt/icu4c/include"
-    export PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig"
-
-When compiling on Apple Silicon, replace `/usr/local` with `/opt/homebrew`.
-
-Once the dependencies are installed, build Aegisub with `meson build && meson compile -C build`.
-
-#### Build a local DMG
-
-Homebrew bottles target the macOS release they were built for, which may be
-newer than Aegisub's default deployment target. For a local package, target
-the current macOS major release and explicitly request an ad-hoc signature.
-The resulting DMG is for development and personal use on that macOS release;
-release packages use CI's source-built dependencies and the
-[macOS release-signing process](docs/developer_docs.md#macos-release-signing).
-
-```bash
-deployment_target="$(sw_vers -productVersion)"
-meson setup build_static \
-  -Ddefault_library=static \
-  -Dbuildtype=debugoptimized \
-  -Dbuild_osx_bundle=true \
-  -Dmacos_deployment_target="${deployment_target}" \
-  --force-fallback-for=boost
-meson compile -C build_static
-meson test -C build_static --verbose
-export AEGISUB_BUNDLE_SIGNATURE=-
-meson compile osx-bundle -C build_static
-meson compile osx-build-dmg -C build_static
-```
-
-### Linux or other
-
-#### Build dependencies for Debian-based systems
+From an "x64 Native Tools Command Prompt":
 
 ```
-compiler:    build-essential
-pkgconfig:   pkg-config  or  pkgconf
-meson:       meson ninja-build
-gettext:     gettext intltool
-fontconfig:  libfontconfig1-dev
-libass:      libass-dev
-boost:       libboost-chrono-dev libboost-locale-dev libboost-regex-dev libboost-system-dev libboost-thread-dev
-zlib:        zlib1g-dev
-WxWidgets:   wx3.2-headers libwxgtk3.2-dev
-ICU:         icu-devtools libicu-dev
-pulse-audio: libpulse-dev
-ALSA:        libasound2-dev
-OpenAL:      libopenal-dev
-ffms2:       libffms2-dev
-fftw3:       libfftw3-dev
-hunspell:    libhunspell-dev
-uchardet:    libuchardet-dev
-libcurl:     libcurl4-openssl-dev  or  libcurl4-gnutls-dev
-opengl:      libgl1-mesa-dev
-gtest:       libgtest-dev
-gmock:       libgmock-dev
-libportal:   libportal-gtk3-dev
+meson setup build-release --buildtype=release -Ddefault_library=static
+ninja -C build-release aegidub.exe
 ```
 
-I.e. to install on Ubuntu 24.04 run this command:
-``` bash
-sudo apt install build-essential pkg-config meson ninja-build gettext intltool libfontconfig1-dev libass-dev libboost-chrono-dev libboost-locale-dev libboost-regex-dev libboost-system-dev libboost-thread-dev zlib1g-dev wx3.2-headers libwxgtk3.2-dev icu-devtools libicu-dev libpulse-dev libasound2-dev libopenal-dev libffms2-dev libfftw3-dev libhunspell-dev libuchardet-dev libcurl4-gnutls-dev libgl1-mesa-dev libgtest-dev libgmock-dev libportal-gtk3-dev
+All other dependencies, including FFmpeg, wxWidgets, Eigen and the C++ htdemucs port, are downloaded and built by Meson.
+
+To build the installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
+
+```
+powershell tools\build-aegidub-installer.ps1
 ```
 
-#### Build Aegisub
+To change the logo, replace `docs/art-sources/aegidubLogo.png` and run `python tools/generate_logo_assets.py`.
 
-``` bash
-meson setup build --prefix=/usr/local --buildtype=release --strip -Dsystem_luajit=false -Ddefault_library=static
-meson compile -C build
-meson install -C build --skip-subprojects luajit
-```
+## Licence and credits
 
-#### Packaging
-If you are packaging Aegisub for a Linux distribution, here are a few things you may need to know:
-- Aegisub cannot be built with LTO (See: https://github.com/TypesettingTools/Aegisub/issues/290).
-- Aegisub depends on LuaJIT and *requires* LuaJIT to be build with Lua 5.2 compatibility enabled.
-  We are aware that most distributions do not compile LuaJIT with this flag, and that this complicates packaging for them, see https://github.com/TypesettingTools/Aegisub/issues/239 for a detailed discussion of the situation.
+aegidub is based on [Aegisub](https://github.com/TypesettingTools/Aegisub), © 2005–2026 Rodrigo Braz Monteiro, Niels Martin Hansen, Thomas Goyne and the Aegisub team, under the BSD licence in [LICENCE](LICENCE).
 
-  Like for its other dependencies, Aegisub includes a meson subproject for LuaJIT that can be used to statically link a version of LuaJIT with 5.2 compatibility.
-  For distributions that do not allow downloading additional sources at build time, the downloaded LuaJIT subproject is included in the source tarballs distributed with releases.
-- When linked against libstdc++, Aegisub needs libstdc++ 6.0.32 or later due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=95048.
-  Aegisub's tests will detect this bug, but if you're not running tests on packaging you'll need to make sure the libstdc++ version is recent enough.
-- Aegisub uses OpenGL through wxWidgets. For Aegisub to work directly on Wayland (as opposed to Xwayland), wxWidgets needs to be built with EGL enabled.
-  Aegisub will automatically fall back to X11 when it detects missing EGL support.
+The built-in voice separator is [demucs.cpp](https://github.com/sevagh/demucs.cpp) (MIT) running Meta's [htdemucs](https://github.com/facebookresearch/demucs) model. Speech is generated by [ElevenLabs](https://elevenlabs.io). See *Help → About* for the other libraries.
 
-The following commands are an example for how to build Aegisub with the goal of creating a distribution package:
-
-```bash
-meson subprojects download luajit              # Or use the tarball
-meson subprojects packagefiles --apply luajit
-
-meson setup builddir --wrap-mode=nodownload --prefix=/usr --buildtype=release -Dsystem_luajit=false -Ddefault_library=static -Dtests=false
-
-meson compile -C builddir
-meson install -C builddir --skip-subprojects luajit
-```
-
-## Developer Documenation
-Some documentation for developers is available in [docs/developer_docs.md](docs/developer_docs.md).
-
-## License
-
-All files in this repository are licensed under various GPL-compatible BSD-style licenses; see LICENCE and the individual source files for more information.
-The official Windows and OS X builds are GPLv2 due to including fftw3.
+Bugs and ideas: [github.com/tuvshinorg/aegidub/issues](https://github.com/tuvshinorg/aegidub/issues).

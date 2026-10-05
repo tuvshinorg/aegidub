@@ -58,7 +58,7 @@ meson install -C $BuildRoot --no-rebuild --destdir $InstallerDir
 if ($LASTEXITCODE -ne 0) { throw "meson install failed (exit $LASTEXITCODE)" }
 
 Write-Step 'Copying executable'
-Copy-ToDirectory $InstallerDir\bin\aegisub.exe  $PortableOutputDir
+Copy-ToDirectory $InstallerDir\bin\aegidub.exe  $PortableOutputDir
 
 Write-Step 'Copying translations'
 Copy-ToDirectory "$InstallerDir\share\locale\*"  "$PortableOutputDir\locale" -Recurse

@@ -597,6 +597,11 @@ AudioDisplay::AudioDisplay(wxWindow *parent, AudioController *controller, agi::C
 	Bind(wxEVT_MIDDLE_UP, &AudioDisplay::OnMouseEvent, this);
 	Bind(wxEVT_RIGHT_UP, &AudioDisplay::OnMouseEvent, this);
 	Bind(wxEVT_MOTION, &AudioDisplay::OnMouseEvent, this);
+	// Another window took the mouse mid-drag: drop the drag
+	Bind(wxEVT_MOUSE_CAPTURE_LOST, [this](wxMouseCaptureLostEvent&) {
+		dragged_object = nullptr;
+		audio_marker.reset();
+	});
 	Bind(wxEVT_ENTER_WINDOW, &AudioDisplay::OnMouseEnter, this);
 	Bind(wxEVT_LEAVE_WINDOW, &AudioDisplay::OnMouseLeave, this);
 	Bind(wxEVT_PAINT, &AudioDisplay::OnPaint, this);

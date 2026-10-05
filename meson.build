@@ -100,8 +100,7 @@ if get_option('official_release')
 endif
 conf.set('WITH_UPDATE_CHECKER', get_option('enable_update_checker'))
 if get_option('enable_update_checker')
-    conf.set_quoted('UPDATE_CHECKER_SERVER', get_option('update_server'))
-    conf.set_quoted('UPDATE_CHECKER_BASE_URL', get_option('update_url'))
+    conf.set_quoted('UPDATE_CHECKER_REPO', get_option('update_repo'))
 endif
 
 deps = []
@@ -368,6 +367,13 @@ foreach dep: check_deps
     endif
 endforeach
 
+# Dub rendering: the FFmpeg libraries already built for FFMS2, including
+# libavfilter for mixing and loudness, and the built-in htdemucs separator
+foreach lib : ['libavformat', 'libavcodec', 'libavfilter', 'libswresample', 'libavutil']
+    deps += dependency(lib, default_options: ['tests=disabled'])
+endforeach
+deps += dependency('demucscpp', fallback: ['demucscpp', 'demucscpp_dep'])
+
 if host_machine.system() == 'windows' and get_option('avisynth').enabled()
     conf.set('WITH_AVISYNTH', 1) # bundled separately with installer
 endif
@@ -558,12 +564,12 @@ aegisub_c_pch = ['src/include/agi_pre_c.h']
 link_args = []
 link_depends = []
 if host_machine.system() == 'windows'
-    manifest_file = configure_file(copy: true, input: 'src/res/aegisub.exe.manifest', output: 'aegisub.exe.manifest')
+    manifest_file = configure_file(copy: true, input: 'src/res/aegisub.exe.manifest', output: 'aegidub.exe.manifest')
     link_args += ['/MANIFEST:EMBED', '/MANIFESTINPUT:@0@'.format(manifest_file)]
     link_depends += manifest_file
 endif
 
-aegisub = executable('aegisub', aegisub_src, version_h, resrc, aegisub_order_dep,
+aegisub = executable('aegidub', aegisub_src, version_h, resrc, aegisub_order_dep,
                      c_args: aegisub_defines,
                      cpp_args: aegisub_defines,
                      link_with: [libresrc, libaegisub],

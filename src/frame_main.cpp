@@ -74,7 +74,7 @@ enum {
 };
 
 #ifdef WITH_STARTUPLOG
-#define StartupLog(a) MessageBox(0, a, "Aegisub startup log", 0)
+#define StartupLog(a) MessageBox(0, a, "aegidub startup log", 0)
 #else
 #define StartupLog(a) LOG_I("frame_main/init") << a
 #endif
@@ -254,7 +254,7 @@ void FrameMain::UpdateTitle() {
 	newTitle << context->subsController->Filename().filename().wstring();
 
 #ifndef __WXMAC__
-	newTitle << " - Aegisub " << GetAegisubLongVersionString();
+	newTitle << " - aegidub " << GetAegisubLongVersionString();
 #endif
 
 #if defined(__WXMAC__)

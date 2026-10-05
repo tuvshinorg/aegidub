@@ -96,10 +96,15 @@ class BaseGrid final : public wxWindow {
 
 	void OnDPIChanged(wxDPIChangedEvent &e);
 	void OnContextMenu(wxContextMenuEvent &evt);
-	/// Is the given x coordinate inside the character (actor) column?
-	bool IsActorColumnAt(int x) const;
+	void OnMouseCaptureLost(wxMouseCaptureLostEvent &evt);
+	/// The column at the given x coordinate, if any
+	const GridColumn *ColumnAt(int x) const;
 	/// Show the character picker and apply the choice to the selected lines
 	void ShowActorMenu(AssDialogue *clicked);
+	/// Show the emotion picker and apply the choice to the selected lines
+	void ShowEmotionMenu(AssDialogue *clicked);
+	/// Let the user edit the spoken text of a line
+	void EditSpokenText(AssDialogue *clicked);
 	void OnHighlightVisibleChange(agi::OptionValue const& opt);
 	void OnKeyDown(wxKeyEvent &event);
 	void OnCharHook(wxKeyEvent &event);

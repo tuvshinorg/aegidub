@@ -115,7 +115,11 @@ void AssDialogue::Parse(std::string const& raw) {
 		margin = mid(-9999, boost::lexical_cast<int>(tkn.next_tok()), 99999);
 	Effect = tkn.next_str_trim();
 
-	std::string text{tkn.next_tok().begin(), str.end()};
+	// The text is everything from the start of the last field to the end of
+	// the line, commas included. Take it by offset: pairing iterators from two
+	// different string_views trips MSVC's debug iterator checks.
+	auto text_tok = tkn.next_tok();
+	std::string text{str.substr(static_cast<size_t>(text_tok.data() - str.data()))};
 
 	if (text.size() > 1 && text[0] == '{' && text[1] == '=') {
 		static const boost::regex extradata_test("^\\{(=\\d+)+\\}");

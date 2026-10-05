@@ -78,6 +78,14 @@ const char *GetVersionNumber() {
 	return BUILD_GIT_VERSION_STRING;
 }
 
+const char *GetReleaseVersion() {
+#ifdef INSTALLER_VERSION
+	return INSTALLER_VERSION;
+#else
+	return "0.0.0";
+#endif
+}
+
 int GetSVNRevision() {
 #ifdef BUILD_GIT_VERSION_NUMBER
 	return BUILD_GIT_VERSION_NUMBER;

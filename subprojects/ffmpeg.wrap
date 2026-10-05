@@ -9,3 +9,5 @@ libavcodec = libavcodec_dep
 libswscale = libswscale_dep
 libavutil = libavutil_dep
 libswresample = libswresample_dep
+# Mixing and loudness filters for dub rendering
+libavfilter = libavfilter_dep

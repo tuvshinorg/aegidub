@@ -66,6 +66,10 @@ public:
 	virtual bool RefreshOnTextChange() const { return false; }
 	/// Is this the column used to pick the character (actor) of a line?
 	virtual bool IsActorColumn() const { return false; }
+	/// Is this the column used to pick the dubbing emotion of a line?
+	virtual bool IsEmotionColumn() const { return false; }
+	/// Is this the column used to edit the spoken text of a line?
+	virtual bool IsSpokenColumn() const { return false; }
 
 	virtual wxString const& Header() const = 0;
 	virtual wxString const& Description() const = 0;

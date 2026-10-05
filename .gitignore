@@ -6,3 +6,7 @@ build*/
 !/subprojects/csri
 !/subprojects/iconv
 !/subprojects/luabins
+
+# Local API keys: never commit
+.env
+.env.*

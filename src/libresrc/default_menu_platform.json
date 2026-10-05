@@ -11,6 +11,8 @@
         { "submenu" : "main/help",     "tlcontext" : "Menu bar", "text" : "&Help", "special" : "help" }
     ],
     "main/file" : [
+        { "command" : "app/projects" },
+        {},
         { "command" : "subtitle/new" },
         { "command" : "subtitle/open" },
         { "command" : "subtitle/open/charset" },
@@ -46,6 +48,7 @@
         { "command" : "tool/style/assistant" },
         { "command" : "tool/translation_assistant" },
         { "submenu" : "main/subtitle/ai translation", "text" : "AI Translation" },
+        { "command" : "tool/voice/cast" },
         { "command" : "tool/resampleres" },
         { "command" : "subtitle/spellcheck" },
         {},

@@ -20,6 +20,12 @@
 #include "ass_file.h"
 #include "compat.h"
 #include "include/aegisub/context.h"
+#include "line_emotion.h"
+#include "line_spoken.h"
+#include "dub_clip.h"
+#include "dub_settings.h"
+#include "subs_controller.h"
+#include "voice_cast.h"
 #include "options.h"
 #include "original_text.h"
 #include "video_controller.h"
@@ -27,8 +33,10 @@
 #include <libaegisub/character_count.h>
 
 #include <algorithm>
+#include <cmath>
 #include <wx/control.h>
 #include <wx/dc.h>
+#include <wx/settings.h>
 
 void WidthHelper::Age() {
 	for (auto it = begin(widths), e = end(widths); it != e; ) {
@@ -246,6 +254,71 @@ struct GridColumnActor final : GridColumn {
 	}
 };
 
+/// Delivery direction of the line for dubbing, as ElevenLabs audio tags
+struct GridColumnEmotion final : GridColumn {
+	COLUMN_HEADER(_("Emotion"))
+	COLUMN_DESCRIPTION(_("Emotion (Dubbing)"))
+	bool Centered() const override { return false; }
+	bool IsEmotionColumn() const override { return true; }
+
+	wxString Value(const AssDialogue *d, const agi::Context *c) const override {
+		if (d->ExtradataIds.get().empty()) return wxString();
+		return to_wx(line_emotion::Get(c->ass.get(), d));
+	}
+
+	int Width(const agi::Context *c, WidthHelper &helper) const override {
+		// Never collapse to nothing: the cell is what the user clicks on to
+		// set a line's emotion
+		int w = helper(L"[surprised]");
+		const int cap = helper(L"x") * 30;
+		for (AssDialogue const& line : c->ass->Events) {
+			if (line.ExtradataIds.get().empty()) continue;
+			w = std::max(w, std::min(cap, helper(line_emotion::Get(c->ass.get(), &line))));
+			if (w >= cap) break;
+		}
+		return w;
+	}
+
+	void Paint(wxDC &dc, int x, int y, const AssDialogue *d, const agi::Context *c) const override {
+		wxString str = Value(d, c);
+		if (str.empty()) return;
+		dc.DrawText(wxControl::Ellipsize(str, dc, wxELLIPSIZE_END, std::max(0, width - 8), wxELLIPSIZE_FLAGS_NONE), x + 4, y + 2);
+	}
+};
+
+/// The line written out for the speech engine, when it differs from the text
+struct GridColumnSpoken final : GridColumn {
+	COLUMN_HEADER(_("Spoken"))
+	COLUMN_DESCRIPTION(_("Spoken Text (Dubbing)"))
+	bool Centered() const override { return false; }
+	bool RefreshOnTextChange() const override { return true; }
+	bool IsSpokenColumn() const override { return true; }
+
+	wxString Value(const AssDialogue *d, const agi::Context *c) const override {
+		return to_wx(line_spoken::Get(c->ass.get(), d));
+	}
+
+	int Width(const agi::Context *c, WidthHelper &helper) const override {
+		// Hidden entirely until at least one line has a spoken text
+		int w = 0;
+		const int cap = helper(L"x") * 40;
+		for (AssDialogue const& line : c->ass->Events) {
+			if (line.ExtradataIds.get().empty()) continue;
+			auto text = line_spoken::Get(c->ass.get(), &line);
+			if (text.empty()) continue;
+			w = std::max(w, std::min(cap, helper(text)));
+			if (w >= cap) break;
+		}
+		return w;
+	}
+
+	void Paint(wxDC &dc, int x, int y, const AssDialogue *d, const agi::Context *c) const override {
+		wxString str = Value(d, c);
+		if (str.empty()) return;
+		dc.DrawText(wxControl::Ellipsize(str, dc, wxELLIPSIZE_END, std::max(0, width - 8), wxELLIPSIZE_FLAGS_NONE), x + 4, y + 2);
+	}
+};
+
 /// Pre-translation text of the line, as stored by the translation commands
 struct GridColumnOriginal final : GridColumn {
 	COLUMN_HEADER(_("Original"))
@@ -389,6 +462,85 @@ public:
 	}
 };
 
+/// How much of the time before the next line the line's generated speech
+/// takes, like CPS but measured on the actual dub
+class GridColumnFit final : public GridColumn {
+	const agi::OptionValue *bg_color = OPT_GET("Colour/Subtitle Grid/CPS Error");
+
+	// Parsing the cast for every row would be slow; reuse it while the
+	// script's cast entry is unchanged
+	mutable std::string cast_source;
+	mutable voice_cast::Cast cast;
+
+	voice_cast::Cast const& Cast(const agi::Context *c) const {
+		std::string current(c->ass->GetScriptInfo("Aegidub Voice Cast"));
+		if (current != cast_source) {
+			cast = voice_cast::Load(c->ass.get());
+			cast_source = std::move(current);
+		}
+		return cast;
+	}
+
+public:
+	COLUMN_HEADER(_("Fit"))
+	COLUMN_DESCRIPTION(_("Dub Fit (speech length / time before the next line; amber is sped up to fit, red needs shortening)"))
+	bool Centered() const override { return true; }
+	bool RefreshOnTextChange() const override { return true; }
+
+	/// Percentage, or -1 when the line has no generated speech
+	int Percent(const AssDialogue *d, const agi::Context *c) const {
+		auto subs = c->subsController->Filename();
+		if (subs.empty() || d->Comment) return -1;
+		dub_clip::Request request;
+		if (!dub_clip::ForLine(c->ass.get(), d, Cast(c), request, nullptr)) return -1;
+		int length = dub_clip::DurationMs(dub_clip::Path(subs, dub::LoadElevenLabsConfig(), request));
+		if (length < 0) return -1;
+		int room = dub_clip::RoomMs(c->ass.get(), d);
+		if (room <= 0) return 999;
+		return std::min(999, length * 100 / room);
+	}
+
+	wxString Value(const AssDialogue *d, const agi::Context *c) const override {
+		int percent = Percent(d, c);
+		return percent < 0 ? wxString() : wxString(std::to_wstring(percent) + L"%");
+	}
+
+	int Width(const agi::Context *, WidthHelper &helper) const override {
+		return helper(wxS("999%"));
+	}
+
+	void Paint(wxDC &dc, int x, int y, const AssDialogue *d, const agi::Context *c) const override {
+		int percent = Percent(d, c);
+		// A dash marks speech that still has to be generated
+		wxString str = percent < 0 ? wxString(d->Comment || d->Actor.get().empty() ? L"" : L"\u2013")
+		                           : wxString(std::to_wstring(percent) + L"%");
+		if (str.empty()) return;
+		wxSize ext = dc.GetTextExtent(str);
+		auto tc = dc.GetTextForeground();
+
+		// Amber while speeding it up makes it fit, red once even that won't
+		const int max_percent = static_cast<int>(std::lround(dub_clip::MaxTempo() * 100));
+		if (percent > 100 && percent <= max_percent) {
+			dc.SetBrush(wxBrush(blend(wxColour(255, 190, 60), dc.GetBrush().GetColour(), 0.7)));
+			dc.SetPen(*wxTRANSPARENT_PEN);
+			dc.DrawRectangle(x, y + 1, width, ext.GetHeight() + 3);
+		}
+		else if (percent > 100) {
+			double alpha = std::min((percent - max_percent) / 10.0 + 0.5, 1.0);
+			dc.SetBrush(wxBrush(blend(to_wx(bg_color->GetColor()), dc.GetBrush().GetColour(), alpha)));
+			dc.SetPen(*wxTRANSPARENT_PEN);
+			dc.DrawRectangle(x, y + 1, width, ext.GetHeight() + 3);
+			dc.SetTextForeground(blend(*wxBLACK, tc, alpha));
+		}
+		else if (percent < 0)
+			dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
+
+		x += (width + 2 - ext.GetWidth()) / 2;
+		dc.DrawText(str, x, y + 2);
+		dc.SetTextForeground(tc);
+	}
+};
+
 class GridColumnText final : public GridColumn {
 	const agi::OptionValue *override_mode;
 	wxString replace_char;
@@ -455,16 +607,19 @@ std::vector<std::unique_ptr<GridColumn>> GetGridColumns() {
 	std::vector<std::unique_ptr<GridColumn>> ret;
 	ret.push_back(make<GridColumnLineNumber>());
 	ret.push_back(make<GridColumnActor>());
+	ret.push_back(make<GridColumnEmotion>());
 	ret.push_back(make<GridColumnLayer>());
 	ret.push_back(make<GridColumnStartTime>());
 	ret.push_back(make<GridColumnEndTime>());
 	ret.push_back(make<GridColumnCPS>());
+	ret.push_back(make<GridColumnFit>());
 	ret.push_back(make<GridColumnStyle>());
 	ret.push_back(make<GridColumnEffect>());
 	ret.push_back(make<GridColumnMarginLeft>());
 	ret.push_back(make<GridColumnMarginRight>());
 	ret.push_back(make<GridColumnMarginVert>());
 	ret.push_back(make<GridColumnOriginal>());
+	ret.push_back(make<GridColumnSpoken>());
 	ret.push_back(make<GridColumnText>());
 	return ret;
 }

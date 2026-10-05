@@ -83,7 +83,7 @@ wxIMPLEMENT_APP(AegisubApp);
 static const char *LastStartupState = nullptr;
 
 #ifdef WITH_STARTUPLOG
-#define StartupLog(a) MessageBox(0, L ## a, L"Aegisub startup log", 0)
+#define StartupLog(a) MessageBox(0, L ## a, L"aegidub startup log", 0)
 #else
 #define StartupLog(a) LastStartupState = a
 #endif
@@ -110,7 +110,7 @@ AegisubApp::AegisubApp() {
 				printf(" Falling back to X11.");
 				wxSetEnv("GDK_BACKEND", "x11");
 			} else {
-				printf(" Set GDK_BACKEND=x11 to run Aegisub under X11.");
+				printf(" Set GDK_BACKEND=x11 to run aegidub under X11.");
 			}
 			printf("\n");
 		}
@@ -123,14 +123,38 @@ wxDEFINE_EVENT(EVT_CALL_THUNK, ValueEvent<agi::dispatch::Thunk>);
 }
 
 /// Message displayed when an exception has occurred.
-static wxString exception_message = "Oops, Aegisub has crashed!\n\nAn attempt has been made to save a copy of your file to:\n\n%s\n\nAegisub will now close.";
+/// Before the rename to aegidub, settings lived in an "Aegisub" folder. On
+/// the first start with no settings of its own, copy them over so API keys,
+/// hotkeys and recent files carry across. The old folder is left alone.
+static void MigrateSettingsFromAegisub() {
+	auto user = config::path->Decode("?user");
+	if (agi::fs::DirectoryExists(user)) return;
+
+	for (const char *old_name : {"Aegisub", ".aegisub"}) {
+		auto old = agi::fs::path(user.parent_path() / old_name);
+		if (!agi::fs::DirectoryExists(old)) continue;
+
+		std::error_code ec;
+		std::filesystem::create_directories(user, ec);
+		for (auto const& entry : std::filesystem::directory_iterator(old, ec)) {
+			auto name = entry.path().filename().string();
+			// Logs and crash dumps belong to the old program
+			if (name == "log" || name == "crashdumps") continue;
+			std::filesystem::copy(entry.path(), user / entry.path().filename(),
+				std::filesystem::copy_options::recursive | std::filesystem::copy_options::skip_existing, ec);
+		}
+		return;
+	}
+}
+
+static wxString exception_message = "Oops, aegidub has crashed!\n\nAn attempt has been made to save a copy of your file to:\n\n%s\n\naegidub will now close.";
 
 /// @brief Gets called when application starts.
 /// @return bool
 bool AegisubApp::OnInit() {
 	// App name (yeah, this is a little weird to get rid of an odd warning)
 #if defined(__WXMSW__) || defined(__WXMAC__)
-	SetAppName("Aegisub");
+	SetAppName("aegidub");
 #else
 	SetAppName("aegisub");
 #endif
@@ -179,6 +203,7 @@ bool AegisubApp::OnInit() {
 		// Might be worth displaying an error in the second case
 	}
 #endif
+	MigrateSettingsFromAegisub();
 	crash_writer::Initialize(config::path->Decode("?user"));
 
 	StartupLog("Create log writer");
@@ -263,7 +288,7 @@ bool AegisubApp::OnInit() {
 		setlocale(LC_CTYPE, "en_US.UTF-8");
 #endif
 
-		exception_message = _("Oops, Aegisub has crashed!\n\nAn attempt has been made to save a copy of your file to:\n\n%s\n\nAegisub will now close.");
+		exception_message = _("Oops, aegidub has crashed!\n\nAn attempt has been made to save a copy of your file to:\n\n%s\n\naegidub will now close.");
 
 		agi::xdp_utils::Initialize();
 
@@ -292,7 +317,7 @@ bool AegisubApp::OnInit() {
 		if (OPT_GET("App/First Start")->GetBool()) {
 			OPT_SET("App/First Start")->SetBool(false);
 #ifdef WITH_UPDATE_CHECKER
-			int result = wxMessageBox(_("Do you want Aegisub to check for updates whenever it starts? You can still do it manually via the Help menu."),_("Check for updates?"), wxYES_NO | wxCENTER);
+			int result = wxMessageBox(_("Do you want aegidub to check for new releases whenever it starts? It only asks before updating, and you can still check manually via the Help menu."),_("Check for updates?"), wxYES_NO | wxCENTER);
 			OPT_SET("App/Auto/Check For Updates")->SetBool(result == wxYES);
 			try {
 				config::opt->Flush();
@@ -312,6 +337,13 @@ bool AegisubApp::OnInit() {
 		auto const& args = argv.GetArguments();
 		if (args.size() > 1)
 			OpenFiles(wxArrayStringsAdapter(args.size() - 1, &args[1]));
+		else if (OPT_GET("Tool/Projects/Show On Startup")->GetBool()) {
+			// Once the main window is up
+			CallAfter([this] {
+				if (!frames.empty())
+					ShowProjectsDialog(frames[0]->context.get());
+			});
+		}
 	}
 	catch (agi::Exception const& e) {
 		wxMessageBox(to_wx(e.GetMessage()), _("Fatal error while initializing"));
@@ -414,7 +446,7 @@ void AegisubApp::UnhandledException([[maybe_unused]] bool stackWalk) {
 		wxMessageBox(agi::wxformat(exception_message, path), _("Program error"), wxOK | wxICON_ERROR | wxCENTER, nullptr);
 	}
 	else if (LastStartupState) {
-		wxMessageBox(fmt_tl("Aegisub has crashed while starting up!\n\nThe last startup step attempted was: %s.", LastStartupState), _("Program error"), wxOK | wxICON_ERROR | wxCENTER);
+		wxMessageBox(fmt_tl("aegidub has crashed while starting up!\n\nThe last startup step attempted was: %s.", LastStartupState), _("Program error"), wxOK | wxICON_ERROR | wxCENTER);
 	}
 #endif
 }
@@ -428,7 +460,7 @@ void AegisubApp::OnFatalException() {
 }
 
 #define SHOW_EXCEPTION(str) \
-	wxMessageBox(fmt_tl("An unexpected error has occurred. Please save your work and restart Aegisub.\n\nError Message: %s", str), \
+	wxMessageBox(fmt_tl("An unexpected error has occurred. Please save your work and restart aegidub.\n\nError Message: %s", str), \
 				_("Exception in event handler"), wxOK | wxICON_ERROR | wxCENTER | wxSTAY_ON_TOP)
 bool AegisubApp::OnExceptionInMainLoop() {
 	try {

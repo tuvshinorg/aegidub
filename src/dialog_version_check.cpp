@@ -27,330 +27,243 @@
 //
 // Aegisub Project http://www.aegisub.org/
 
+/// @file dialog_version_check.cpp
+/// @brief Offer new releases published on the project's GitHub repository
+///
+/// Only the GitHub releases API is contacted, and nothing about the user's
+/// system is sent. Nothing is downloaded or installed without asking.
+
 #ifdef WITH_UPDATE_CHECKER
 
+#include "json_util.h"
 #include "compat.h"
 #include "format.h"
+#include "http_request.h"
 #include "options.h"
 #include "version.h"
 
-#include <libaegisub/ass/string_codec.h>
 #include <libaegisub/dispatch.h>
-#include <libaegisub/exception.h>
-#include <libaegisub/line_iterator.h>
-#include <libaegisub/scoped_ptr.h>
-#include <libaegisub/split.h>
 
+#include <array>
+#include <boost/algorithm/string/predicate.hpp>
 #include <ctime>
-#include <curl/curl.h>
-#include <functional>
 #include <mutex>
+#include <regex>
 #include <sstream>
-#include <vector>
 #include <wx/button.h>
 #include <wx/checkbox.h>
 #include <wx/dialog.h>
-#include <wx/event.h>
-#include <wx/hyperlink.h>
-#include <wx/intl.h>
-#include <wx/platinfo.h>
 #include <wx/sizer.h>
 #include <wx/statline.h>
 #include <wx/stattext.h>
-#include <wx/string.h>
 #include <wx/textctrl.h>
-
-#ifdef __APPLE__
-#include <CoreFoundation/CoreFoundation.h>
-#endif
+#include <wx/utils.h>
 
 namespace {
+using json_util::find;
+using json_util::find_string;
 std::mutex VersionCheckLock;
 
-struct AegisubUpdateDescription {
-	std::string url;
-	std::string friendly_name;
-	std::string description;
+struct Release {
+	/// Tag without the leading "v", e.g. "1.3.0"
+	std::string version;
+	std::string name;
+	std::string notes;
+	/// Release page on GitHub
+	std::string page_url;
+	/// Installer or archive for this platform, or empty if there is none
+	std::string download_url;
 };
 
-class VersionCheckerResultDialog final : public wxDialog {
-	void OnCloseButton(wxCommandEvent &evt);
-	void OnRemindMeLater(wxCommandEvent &evt);
-	void OnClose(wxCloseEvent &evt);
+using SemVer = std::array<int, 3>;
 
+/// Parse "v1.2.3" or "1.2.3-beta"; false if the text isn't a version
+bool parse_version(std::string const& text, SemVer& out) {
+	static const std::regex re(R"(^v?(\d+)\.(\d+)\.(\d+))");
+	std::smatch m;
+	if (!std::regex_search(text, m, re)) return false;
+	for (int i = 0; i < 3; ++i)
+		out[i] = std::stoi(m[i + 1].str());
+	return true;
+}
+
+class UpdateDialog final : public wxDialog {
+	Release release;
 	wxCheckBox *automatic_check_checkbox;
 
+	void OnUpdate(wxCommandEvent &);
+	void OnSkip(wxCommandEvent &);
+	void OnRemindMeLater(wxCommandEvent &);
+	void OnClose(wxCloseEvent &);
+
 public:
-	VersionCheckerResultDialog(wxString const& main_text, const std::vector<AegisubUpdateDescription> &updates);
+	/// @param release The newer release, or nullptr to only show a message
+	UpdateDialog(wxString const& main_text, const Release *release);
 
 	bool ShouldPreventAppExit() const override { return false; }
 };
 
-VersionCheckerResultDialog::VersionCheckerResultDialog(wxString const& main_text, const std::vector<AegisubUpdateDescription> &updates)
-: wxDialog(nullptr, -1, _("Version Checker"))
+UpdateDialog::UpdateDialog(wxString const& main_text, const Release *new_release)
+: wxDialog(nullptr, -1, _("aegidub Update"))
 {
 	const int controls_width = 500;
+	if (new_release) release = *new_release;
 
 	wxSizer *main_sizer = new wxBoxSizer(wxVERTICAL);
 
 	wxStaticText *text = new wxStaticText(this, -1, main_text);
 	text->Wrap(controls_width);
-	main_sizer->Add(text, 0, wxBOTTOM|wxEXPAND, 6);
+	main_sizer->Add(text, 0, wxBOTTOM | wxEXPAND, 6);
 
-	for (auto const& update : updates) {
-		main_sizer->Add(new wxStaticLine(this), 0, wxEXPAND|wxALL, 6);
+	if (new_release) {
+		main_sizer->Add(new wxStaticLine(this), 0, wxEXPAND | wxALL, 6);
 
-		text = new wxStaticText(this, -1, to_wx(update.friendly_name));
-		wxFont boldfont = text->GetFont();
-		boldfont.SetWeight(wxFONTWEIGHT_BOLD);
-		text->SetFont(boldfont);
-		main_sizer->Add(text, 0, wxEXPAND|wxBOTTOM, 6);
+		text = new wxStaticText(this, -1, to_wx(release.name.empty() ? release.version : release.name));
+		text->SetFont(text->GetFont().Bold());
+		main_sizer->Add(text, 0, wxEXPAND | wxBOTTOM, 6);
 
-		wxTextCtrl *descbox = new wxTextCtrl(this, -1, to_wx(update.description), wxDefaultPosition, wxSize(controls_width,60), wxTE_MULTILINE|wxTE_READONLY);
-		main_sizer->Add(descbox, 0, wxEXPAND|wxBOTTOM, 6);
-
-		main_sizer->Add(new wxHyperlinkCtrl(this, -1, to_wx(update.url), to_wx(update.url)), 0, wxALIGN_LEFT|wxBOTTOM, 6);
+		if (!release.notes.empty()) {
+			auto notes = new wxTextCtrl(this, -1, to_wx(release.notes), wxDefaultPosition,
+				wxSize(controls_width, 160), wxTE_MULTILINE | wxTE_READONLY);
+			main_sizer->Add(notes, 1, wxEXPAND | wxBOTTOM, 6);
+		}
+		main_sizer->Add(new wxStaticLine(this), 0, wxEXPAND | wxALL, 6);
 	}
 
-	automatic_check_checkbox = new wxCheckBox(this, -1, _("&Auto Check for Updates"));
+	automatic_check_checkbox = new wxCheckBox(this, -1, _("&Check for new releases on startup"));
 	automatic_check_checkbox->SetValue(OPT_GET("App/Auto/Check For Updates")->GetBool());
+	main_sizer->Add(automatic_check_checkbox, 0, wxEXPAND | wxBOTTOM, 6);
 
-	wxButton *remind_later_button = nullptr;
-	if (updates.size() > 0)
-		remind_later_button = new wxButton(this, wxID_NO, _("Remind me again in a &week"));
+	auto buttons = new wxBoxSizer(wxHORIZONTAL);
+	if (new_release) {
+		auto update = new wxButton(this, wxID_YES, release.download_url.empty() ? _("&Open release page") : _("&Download update"));
+		update->SetDefault();
+		buttons->Add(update, 0, wxRIGHT, 5);
+		buttons->Add(new wxButton(this, wxID_NO, _("Remind me in a &week")), 0, wxRIGHT, 5);
+		buttons->Add(new wxButton(this, wxID_IGNORE, _("&Skip this version")), 0, wxRIGHT, 5);
+	}
+	buttons->AddStretchSpacer();
+	buttons->Add(new wxButton(this, wxID_CLOSE, new_release ? _("&Not now") : _("&Close")));
+	main_sizer->Add(buttons, 0, wxEXPAND, 0);
 
-	wxButton *close_button = new wxButton(this, wxID_OK, _("&Close"));
-	SetAffirmativeId(wxID_OK);
-	SetEscapeId(wxID_OK);
-
-	if (updates.size())
-		main_sizer->Add(new wxStaticLine(this), 0, wxEXPAND|wxALL, 6);
-	main_sizer->Add(automatic_check_checkbox, 0, wxEXPAND|wxBOTTOM, 6);
-
-	auto button_sizer = new wxStdDialogButtonSizer();
-	button_sizer->AddButton(close_button);
-	if (remind_later_button)
-		button_sizer->AddButton(remind_later_button);
-	button_sizer->Realize();
-	main_sizer->Add(button_sizer, 0, wxEXPAND, 0);
+	SetEscapeId(wxID_CLOSE);
 
 	wxSizer *outer_sizer = new wxBoxSizer(wxVERTICAL);
-	outer_sizer->Add(main_sizer, 0, wxALL|wxEXPAND, 12);
-
+	outer_sizer->Add(main_sizer, 1, wxALL | wxEXPAND, 12);
 	SetSizerAndFit(outer_sizer);
 	Centre();
 	Show();
 
-	Bind(wxEVT_BUTTON, std::bind(&VersionCheckerResultDialog::Close, this, false), wxID_OK);
-	Bind(wxEVT_BUTTON, &VersionCheckerResultDialog::OnRemindMeLater, this, wxID_NO);
-	Bind(wxEVT_CLOSE_WINDOW, &VersionCheckerResultDialog::OnClose, this);
+	Bind(wxEVT_BUTTON, &UpdateDialog::OnUpdate, this, wxID_YES);
+	Bind(wxEVT_BUTTON, &UpdateDialog::OnRemindMeLater, this, wxID_NO);
+	Bind(wxEVT_BUTTON, &UpdateDialog::OnSkip, this, wxID_IGNORE);
+	Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { Close(); }, wxID_CLOSE);
+	Bind(wxEVT_CLOSE_WINDOW, &UpdateDialog::OnClose, this);
 }
 
-void VersionCheckerResultDialog::OnRemindMeLater(wxCommandEvent &) {
-	// In one week
-	time_t new_next_check_time = time(nullptr) + 7*24*60*60;
-	OPT_SET("Version/Next Check")->SetInt(new_next_check_time);
-
+void UpdateDialog::OnUpdate(wxCommandEvent &) {
+	// The installer is downloaded by the browser and run by the user, so
+	// nothing is replaced while aegidub is running
+	wxLaunchDefaultBrowser(to_wx(release.download_url.empty() ? release.page_url : release.download_url));
 	Close();
 }
 
-void VersionCheckerResultDialog::OnClose(wxCloseEvent &) {
+void UpdateDialog::OnSkip(wxCommandEvent &) {
+	OPT_SET("Version/Skipped Release")->SetString(release.version);
+	Close();
+}
+
+void UpdateDialog::OnRemindMeLater(wxCommandEvent &) {
+	OPT_SET("Version/Next Check")->SetInt(time(nullptr) + 7 * 24 * 60 * 60);
+	Close();
+}
+
+void UpdateDialog::OnClose(wxCloseEvent &) {
 	OPT_SET("App/Auto/Check For Updates")->SetBool(automatic_check_checkbox->GetValue());
 	Destroy();
 }
 
-DEFINE_EXCEPTION(VersionCheckError, agi::Exception);
-
-void PostErrorEvent(bool interactive, wxString const& error_text) {
-	if (interactive) {
-		agi::dispatch::Main().Async([=]{
-			new VersionCheckerResultDialog(error_text, {});
-		});
-	}
+void ShowMessage(wxString const& text) {
+	agi::dispatch::Main().Async([=] { new UpdateDialog(text, nullptr); });
 }
 
-static const char * GetOSShortName() {
-	int osver_maj, osver_min;
-	wxOperatingSystemId osid = wxGetOsVersion(&osver_maj, &osver_min);
-
-	if (osid & wxOS_WINDOWS_NT) {
-		if (osver_maj == 5 && osver_min == 0)
-			return "win2k";
-		else if (osver_maj == 5 && osver_min == 1)
-			return "winxp";
-		else if (osver_maj == 5 && osver_min == 2)
-			return "win2k3"; // this is also xp64
-		else if (osver_maj == 6 && osver_min == 0)
-			return "win60"; // vista and server 2008
-		else if (osver_maj == 6 && osver_min == 1)
-			return "win61"; // 7 and server 2008r2
-		else if (osver_maj == 6 && osver_min == 2)
-			return "win62"; // 8 and server 2012
-		else if (osver_maj == 6 && osver_min == 3)
-			return "win63"; // 8.1 and server 2012r2
-		else if (osver_maj == 10 && osver_min == 0)
-			return "win10"; // 10 or 11 and server 2016/2019
-		else
-			return "windows"; // future proofing? I doubt we run on nt4
-	}
-	// CF returns 0x10 for some reason, which wx has recently started
-	// turning into 10
-	else if (osid & wxOS_MAC_OSX_DARWIN && (osver_maj == 0x10 || osver_maj == 10)) {
-		// ugliest hack in the world? nah.
-		static char osxstring[] = "osx00";
-		char minor = osver_min >> 4;
-		char patch = osver_min & 0x0F;
-		osxstring[3] = minor + ((minor<=9) ? '0' : ('a'-1));
-		osxstring[4] = patch + ((patch<=9) ? '0' : ('a'-1));
-		return osxstring;
-	}
-	else if (osid & wxOS_UNIX_LINUX)
-		return "linux";
-	else if (osid & wxOS_UNIX_FREEBSD)
-		return "freebsd";
-	else if (osid & wxOS_UNIX_OPENBSD)
-		return "openbsd";
-	else if (osid & wxOS_UNIX_NETBSD)
-		return "netbsd";
-	else if (osid & wxOS_UNIX_SOLARIS)
-		return "solaris";
-	else if (osid & wxOS_UNIX_AIX)
-		return "aix";
-	else if (osid & wxOS_UNIX_HPUX)
-		return "hpux";
-	else if (osid & wxOS_UNIX)
-		return "unix";
-	else if (osid & wxOS_OS2)
-		return "os2";
-	else if (osid & wxOS_DOS)
-		return "dos";
-	else
-		return "unknown";
-}
-
-#ifdef WIN32
-typedef BOOL (WINAPI * PGetUserPreferredUILanguages)(DWORD dwFlags, PULONG pulNumLanguages, wchar_t *pwszLanguagesBuffer, PULONG pcchLanguagesBuffer);
-
-// Try using Win 6+ functions if available
-static wxString GetUILanguage() {
-	agi::scoped_holder<HMODULE, BOOL (__stdcall *)(HMODULE)> kernel32(LoadLibraryW(L"kernel32.dll"), FreeLibrary);
-	if (!kernel32) return "";
-
-	PGetUserPreferredUILanguages gupuil = (PGetUserPreferredUILanguages)GetProcAddress(kernel32, "GetUserPreferredUILanguages");
-	if (!gupuil) return "";
-
-	ULONG numlang = 0, output_len = 0;
-	if (gupuil(MUI_LANGUAGE_NAME, &numlang, 0, &output_len) != TRUE || !output_len)
-		return "";
-
-	std::vector<wchar_t> output(output_len);
-	if (!gupuil(MUI_LANGUAGE_NAME, &numlang, &output[0], &output_len) || numlang < 1)
-		return "";
-
-	// We got at least one language, just treat it as the only, and a null-terminated string
-	return &output[0];
-}
-
-static wxString GetSystemLanguage() {
-	wxString res = GetUILanguage();
-	if (!res)
-		// On an old version of Windows, let's just return the LANGID as a string
-		res = fmt_wx("x-win%04x", GetUserDefaultUILanguage());
-
-	return res;
-}
-#elif __APPLE__
-static wxString GetSystemLanguage() {
-	CFLocaleRef locale = CFLocaleCopyCurrent();
-	CFStringRef localeName = (CFStringRef)CFLocaleGetValue(locale, kCFLocaleIdentifier);
-
-	char buf[128] = { 0 };
-	CFStringGetCString(localeName, buf, sizeof buf, kCFStringEncodingUTF8);
-	CFRelease(locale);
-
-	return wxString::FromUTF8(buf);
-
-}
+/// The release asset meant for this platform, if any
+std::string platform_download(json::Object const& release) {
+	auto assets = find(release, "assets");
+	if (!assets) return {};
+#if defined(_WIN32)
+	const std::array<const char *, 2> extensions = {".exe", ".zip"};
+#elif defined(__APPLE__)
+	const std::array<const char *, 2> extensions = {".dmg", ".zip"};
 #else
-static wxString GetSystemLanguage() {
-	return wxLocale::GetLanguageInfo(wxLocale::GetSystemLanguage())->CanonicalName;
-}
+	const std::array<const char *, 2> extensions = {".AppImage", ".tar.gz"};
 #endif
-
-static wxString GetAegisubLanguage() {
-	return to_wx(OPT_GET("App/Language")->GetString());
+	for (auto ext : extensions) {
+		for (auto const& asset : static_cast<json::Array const&>(*assets)) {
+			json::Object const& obj = asset;
+			if (boost::iends_with(find_string(obj, "name"), ext))
+				return find_string(obj, "browser_download_url");
+		}
+	}
+	return {};
 }
 
-size_t writeToStringCb(char *contents, size_t size, size_t nmemb, std::string *s) {
-	s->append(contents, size * nmemb);
-	return size * nmemb;
+/// @return The latest release, or false if the repository has none
+bool FetchLatestRelease(Release& out) {
+	auto response = http::Request(
+		std::string("https://api.github.com/repos/") + UPDATE_CHECKER_REPO + "/releases/latest",
+		{"Accept: application/vnd.github+json", "X-GitHub-Api-Version: 2022-11-28"},
+		nullptr, 60L, nullptr);
+
+	// GitHub answers 404 while a repository has no published release
+	if (response.status == 404) return false;
+	if (response.status != 200)
+		throw http::Error("GitHub answered with HTTP " + std::to_string(response.status));
+
+	std::istringstream ss(response.body);
+	json::UnknownElement root;
+	json::Reader::Read(root, ss);
+	json::Object const& obj = root;
+
+	std::string tag = find_string(obj, "tag_name");
+	out.version = tag.size() > 1 && (tag[0] == 'v' || tag[0] == 'V') ? tag.substr(1) : tag;
+	out.name = find_string(obj, "name");
+	out.notes = find_string(obj, "body");
+	out.page_url = find_string(obj, "html_url");
+	out.download_url = platform_download(obj);
+	return true;
 }
 
 void DoCheck(bool interactive) {
-	CURL *curl;
-	CURLcode res_code;
-
-	curl = curl_easy_init();
-	if (!curl)
-		throw VersionCheckError(from_wx(_("Curl could not be initialized.")));
-
-	curl_easy_setopt(curl, CURLOPT_URL,
-		agi::format("%s%s?rev=%d&rel=%d&os=%s&lang=%s&aegilang=%s"
-			, UPDATE_CHECKER_SERVER
-			, UPDATE_CHECKER_BASE_URL
-			, GetSVNRevision()
-			, (GetIsOfficialRelease() ? 1 : 0)
-			, GetOSShortName()
-			, GetSystemLanguage()
-			, GetAegisubLanguage()
-		).c_str());
-	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-	curl_easy_setopt(curl, CURLOPT_USERAGENT, agi::format("Aegisub %s", GetAegisubLongVersionString()).c_str());
-
-	std::string result;
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeToStringCb);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &result);
-
-	res_code = curl_easy_perform(curl);
-	curl_easy_cleanup(curl);
-	if (res_code != CURLE_OK) {
-		std::string err_msg = agi::format(_("Checking for updates failed: %s."), curl_easy_strerror(res_code));
-		throw VersionCheckError(err_msg);
+	Release release;
+	if (!FetchLatestRelease(release)) {
+		if (interactive)
+			ShowMessage(_("No aegidub release has been published yet."));
+		return;
 	}
 
-	std::stringstream ss(result);
-	std::vector<AegisubUpdateDescription> results;
-	for (auto const& line : agi::line_iterator<std::string>(ss)) {
-		if (line.empty()) continue;
+	SemVer latest, current;
+	if (!parse_version(release.version, latest)) {
+		if (interactive)
+			ShowMessage(fmt_tl("The latest release, \"%s\", has no version number that can be compared.", release.version));
+		return;
+	}
+	if (!parse_version(GetReleaseVersion(), current))
+		current = {0, 0, 0};
 
-		std::vector<std::string> parsed;
-		agi::Split(parsed, line, '|');
-		if (parsed.size() != 6) continue;
-
-		if (atoi(parsed[1].c_str()) <= GetSVNRevision())
-			continue;
-
-		// 0 and 2 being things that never got used
-		results.push_back(AegisubUpdateDescription{
-			agi::ass::inline_string_decode(parsed[3]),
-			agi::ass::inline_string_decode(parsed[4]),
-			agi::ass::inline_string_decode(parsed[5])
-		});
+	if (latest <= current) {
+		if (interactive)
+			ShowMessage(fmt_tl("You have the latest version of aegidub (%s).", GetReleaseVersion()));
+		return;
 	}
 
-	if (!results.empty() || interactive) {
-		agi::dispatch::Main().Async([=]{
-			wxString text;
-			if (results.size() == 1)
-				text = _("An update to Aegisub was found.");
-			else if (results.size() > 1)
-				text = _("Several possible updates to Aegisub were found.");
-			else
-				text = _("There are no updates to Aegisub.");
+	// An automatic check stays quiet about a version the user chose to skip
+	if (!interactive && OPT_GET("Version/Skipped Release")->GetString() == release.version)
+		return;
 
-			new VersionCheckerResultDialog(text, results);
-		});
-	}
+	wxString text = fmt_tl("aegidub %s is available. You have %s.\n\nDo you want to update?",
+		release.version, GetReleaseVersion());
+	agi::dispatch::Main().Async([=] { new UpdateDialog(text, &release); });
 }
 }
 
@@ -372,20 +285,22 @@ void PerformVersionCheck(bool interactive) {
 		try {
 			DoCheck(interactive);
 		}
-		catch (const agi::Exception &e) {
-			PostErrorEvent(interactive, fmt_tl(
-				"There was an error checking for updates to Aegisub:\n%s\n\nIf other applications can access the Internet fine, this is probably a temporary server problem on our end.",
-				e.GetMessage()));
+		catch (std::exception const& e) {
+			if (interactive)
+				ShowMessage(fmt_tl("Checking for a new aegidub release failed:\n%s", e.what()));
 		}
 		catch (...) {
-			PostErrorEvent(interactive, _("An unknown error occurred while checking for updates to Aegisub."));
+			if (interactive)
+				ShowMessage(_("An unknown error occurred while checking for a new aegidub release."));
 		}
 
 		VersionCheckLock.unlock();
 
 		agi::dispatch::Main().Async([]{
-			time_t new_next_check_time = time(nullptr) + 60*60; // in one hour
-			OPT_SET("Version/Next Check")->SetInt(new_next_check_time);
+			// Don't override a "remind me in a week" chosen meanwhile
+			time_t next = time(nullptr) + 60 * 60;
+			if (OPT_GET("Version/Next Check")->GetInt() < next)
+				OPT_SET("Version/Next Check")->SetInt(next);
 		});
 	});
 }

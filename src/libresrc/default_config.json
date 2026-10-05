@@ -587,6 +587,26 @@
 			"Model" : "gpt-5-mini",
 			"Target Language" : "Mongolian"
 		},
+		"Dub Render" : {
+			"Keep Original Track" : true,
+			"Keep Original Voices" : true,
+			"Original Voice Volume" : 15,
+			"Python" : "python",
+			"Remaster" : true,
+			"Use GPU If Available" : true
+		},
+		"Projects" : {
+			"Folder" : "",
+			"Show On Startup" : true
+		},
+		"Voice Cast" : {
+			"API Key" : "",
+			"Concurrent Requests" : 3,
+			"Language Code" : "mn",
+			"Max Speed Up" : 10,
+			"Model" : "eleven_v4",
+			"Series File" : ""
+		},
 		"Translation Assistant" : {
 			"Last" : {
 				"X" : -1,
@@ -602,7 +622,8 @@
 
 	"Version" : {
 		"Last Version" : 4040,
-		"Next Check" : 0
+		"Next Check" : 0,
+		"Skipped Release" : ""
 	},
 
 	"Video" : {
