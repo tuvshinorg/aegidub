@@ -1,0 +1,106 @@
+name: Release
+
+# Pushing a tag such as v1.0.0 builds aegidub, makes the installer, signs
+# both when a certificate is configured, and publishes a GitHub release that
+# the program's update checker then offers.
+#
+# Code signing (optional): add these repository secrets
+#   WINDOWS_SIGN_PFX_BASE64    the .pfx certificate, base64 encoded
+#   WINDOWS_SIGN_PFX_PASSWORD  its password
+# Without them the release is built unsigned.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build a release for, e.g. v1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Windows installer
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The version comes from the tag, so the history and tags are needed
+          fetch-depth: '0'
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install Meson and Ninja
+        run: |
+          python -m pip install --upgrade pip
+          pip install meson ninja
+
+      - name: Install Inno Setup
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Cache downloaded dependencies
+        uses: actions/cache@v4
+        with:
+          path: subprojects/packagecache
+          key: subprojects-${{ hashFiles('subprojects/*.wrap') }}
+
+      - name: Find Visual Studio
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "Could not find a Visual Studio installation" }
+          "VS=$vsPath" >> $env:GITHUB_ENV
+
+      - name: Build
+        run: |
+          Import-Module "$env:VS\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $env:VS -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+          powershell -ExecutionPolicy Bypass -File tools\ci-configure.ps1 build-release -OfficialRelease
+          ninja -C build-release aegidub.exe
+
+      - name: Check the build knows its version
+        run: |
+          $header = Get-Content build-release\git_version.h -Raw
+          if ($header -notmatch 'TAGGED_RELEASE 1') { throw "The build is not from the tag $env:TAG" }
+          Write-Host $header
+
+      - name: Prepare the signing certificate
+        env:
+          PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          if ($env:PFX_BASE64) {
+            $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+            "SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+            "SIGN_PFX_PASSWORD=$env:PFX_PASSWORD" >> $env:GITHUB_ENV
+            Write-Host 'The release will be signed.'
+          } else {
+            Write-Host '::warning::No signing certificate configured; the installer will be unsigned and Windows SmartScreen will warn about it.'
+          }
+
+      - name: Build the installer
+        run: powershell -ExecutionPolicy Bypass -File tools\build-aegidub-installer.ps1 -BuildRoot build-release
+
+      - name: Remove the certificate
+        if: always()
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP 'sign.pfx') -ErrorAction SilentlyContinue
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: aegidub ${{ env.TAG }}
+          generate_release_notes: true
+          files: build-release/aegidub-*-setup.exe
+          fail_on_unmatched_files: true

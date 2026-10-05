@@ -81,6 +81,19 @@ To build the installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php
 powershell tools\build-aegidub-installer.ps1
 ```
 
+### Releasing
+
+Push a version tag and GitHub Actions does the rest:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The *Release* workflow builds aegidub from the tag (so the program knows its version), makes the installer and publishes a GitHub release with it attached. Installed copies of aegidub then offer the update.
+
+To sign the program and installer, so Windows SmartScreen doesn't warn about an unknown publisher, add two repository secrets: `WINDOWS_SIGN_PFX_BASE64` (your code signing certificate as a base64-encoded `.pfx`) and `WINDOWS_SIGN_PFX_PASSWORD`. Locally, set `SIGN_PFX` and `SIGN_PFX_PASSWORD` before running the installer script. Without a certificate everything still builds, unsigned.
+
 To change the logo, replace `docs/art-sources/aegidubLogo.png` and run `python tools/generate_logo_assets.py`.
 
 ## Licence and credits

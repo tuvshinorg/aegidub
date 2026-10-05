@@ -81,6 +81,19 @@ Installer хийхдээ [Inno Setup 6](https://jrsoftware.org/isinfo.php) су�
 powershell tools\build-aegidub-installer.ps1
 ```
 
+### Release гаргах
+
+Хувилбарын tag push хийхэд үлдсэнийг нь GitHub Actions хийнэ:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+*Release* workflow нь tag-аас aegidub-ийг build хийнэ (ингэснээр програм өөрийн хувилбарыг мэднэ), installer хийгээд түүнийг хавсаргасан GitHub release нийтэлнэ. Суулгасан aegidub-ууд дараа нь шинэчлэлийг санал болгоно.
+
+Програм болон installer-т гарын үсэг зурж, Windows SmartScreen "үл мэдэгдэх нийтлэгч" гэж анхааруулахгүй болгохын тулд repo-д хоёр secret нэмнэ: `WINDOWS_SIGN_PFX_BASE64` (code signing гэрчилгээгээ base64 болгосон `.pfx`) болон `WINDOWS_SIGN_PFX_PASSWORD`. Компьютер дээрээ бол installer-ийн script-ийг ажиллуулахаас өмнө `SIGN_PFX`, `SIGN_PFX_PASSWORD`-ийг тохируулна. Гэрчилгээгүй бол бүх зүйл гарын үсэггүйгээр build хийгдэнэ.
+
 Logo солих бол `docs/art-sources/aegidubLogo.png`-г солиод `python tools/generate_logo_assets.py` ажиллуулна.
 
 ## Лиценз ба талархал

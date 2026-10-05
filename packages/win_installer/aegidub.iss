@@ -1,7 +1,9 @@
 ; Installer for aegidub (Windows x64)
 ;
 ; Build with tools\build-aegidub-installer.ps1, which downloads the Visual C++
-; runtime and sets BUILD_ROOT and SOURCE_ROOT for this script.
+; runtime, sets BUILD_ROOT and SOURCE_ROOT for this script, passes the bundled
+; runtime's version as VC_MAJOR/VC_MINOR, and defines SIGN with a "signtool"
+; sign tool when a code signing certificate is configured.
 ;
 ; This is deliberately separate from the Aegisub installer scripts next to it:
 ; it has its own AppId so it never replaces or uninstalls an Aegisub
@@ -15,9 +17,13 @@
 
 #include BUILD_ROOT + "\git_version.h"
 
-; The MSVC toolset the program was built with; an older runtime won't do
+; Version of the bundled runtime: older ones on the computer get replaced
+#ifndef VC_MAJOR
 #define VC_MAJOR 14
+#endif
+#ifndef VC_MINOR
 #define VC_MINOR 44
+#endif
 
 [Setup]
 AppId={{A6884C1B-66C8-46A5-A6AA-90FEB79682FF}
@@ -50,6 +56,10 @@ WizardSmallImageFile={#INSTALLER_DIR}\aegisub-large.bmp
 SetupIconFile={#INSTALLER_DIR}\portable\icon.ico
 UninstallDisplayIcon={app}\aegidub.exe
 UninstallDisplayName=aegidub
+#ifdef SIGN
+SignTool=signtool
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"
