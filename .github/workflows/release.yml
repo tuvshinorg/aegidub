@@ -4,10 +4,16 @@ name: Release
 # both when a certificate is configured, and publishes a GitHub release that
 # the program's update checker then offers.
 #
-# Code signing (optional): add these repository secrets
-#   WINDOWS_SIGN_PFX_BASE64    the .pfx certificate, base64 encoded
-#   WINDOWS_SIGN_PFX_PASSWORD  its password
-# Without them the release is built unsigned.
+# Code signing (optional), either of:
+#   SignPath (free for open source through the SignPath Foundation):
+#     repository variable SIGNPATH_ORGANIZATION_ID and secret SIGNPATH_API_TOKEN.
+#     The project in SignPath is "aegidub" with the signing policy
+#     "release-signing" and .signpath/artifact-configuration.xml as its
+#     artifact configuration. Each request waits for approval in SignPath.
+#   Your own certificate: repository secrets
+#     WINDOWS_SIGN_PFX_BASE64    the .pfx certificate, base64 encoded
+#     WINDOWS_SIGN_PFX_PASSWORD  its password
+# Without either the release is built unsigned.
 
 on:
   push:
@@ -74,23 +80,75 @@ jobs:
           if ($header -notmatch 'TAGGED_RELEASE 1') { throw "The build is not from the tag $env:TAG" }
           Write-Host $header
 
+      - name: Upload aegidub.exe for signing
+        id: upload-exe
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: aegidub-exe-unsigned
+          path: build-release/aegidub.exe
+          if-no-files-found: error
+
+      - name: Sign aegidub.exe with SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: aegidub
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-exe
+
+      - name: Use the signed aegidub.exe
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: Copy-Item signed-exeegidub.exe build-releaseegidub.exe -Force
+
       - name: Prepare the signing certificate
         env:
           PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
           PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
         run: |
-          if ($env:PFX_BASE64) {
+          if ($env:PFX_BASE64 -and '${{ vars.SIGNPATH_ORGANIZATION_ID }}') {
+            Write-Host 'SignPath is configured, so the certificate secrets are not used.'
+          } elseif ($env:PFX_BASE64) {
             $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
             [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
             "SIGN_PFX=$pfx" >> $env:GITHUB_ENV
             "SIGN_PFX_PASSWORD=$env:PFX_PASSWORD" >> $env:GITHUB_ENV
             Write-Host 'The release will be signed.'
-          } else {
+          } elseif (-not '${{ vars.SIGNPATH_ORGANIZATION_ID }}') {
             Write-Host '::warning::No signing certificate configured; the installer will be unsigned and Windows SmartScreen will warn about it.'
           }
 
       - name: Build the installer
         run: powershell -ExecutionPolicy Bypass -File tools\build-aegidub-installer.ps1 -BuildRoot build-release
+
+      - name: Upload the installer for signing
+        id: upload-installer
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: aegidub-installer-unsigned
+          path: build-release/aegidub-*-setup.exe
+          if-no-files-found: error
+
+      - name: Sign the installer with SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: aegidub
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+
+      - name: Use the signed installer
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: Copy-Item signed-installeregidub-*-setup.exe build-release\ -Force
 
       - name: Remove the certificate
         if: always()

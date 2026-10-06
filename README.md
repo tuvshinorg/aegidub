@@ -96,7 +96,27 @@ git push origin v1.0.0
 
 The *Release* workflow builds aegidub from the tag (so the program knows its version), makes the installer and publishes a GitHub release with it attached. Installed copies of aegidub then offer the update.
 
-To sign the program and installer, so Windows SmartScreen doesn't warn about an unknown publisher, add two repository secrets: `WINDOWS_SIGN_PFX_BASE64` (your code signing certificate as a base64-encoded `.pfx`) and `WINDOWS_SIGN_PFX_PASSWORD`. Locally, set `SIGN_PFX` and `SIGN_PFX_PASSWORD` before running the installer script. Without a certificate everything still builds, unsigned.
+The program and installer are signed through [SignPath](https://signpath.io) once the repository variable `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN` are set; each release then waits for its signing request to be approved in SignPath. The SignPath project is `aegidub`, with the signing policy `release-signing` and [`.signpath/artifact-configuration.xml`](.signpath/artifact-configuration.xml) as its artifact configuration. Alternatively, sign with your own certificate by adding the secrets `WINDOWS_SIGN_PFX_BASE64` (a base64-encoded `.pfx`) and `WINDOWS_SIGN_PFX_PASSWORD`; locally, set `SIGN_PFX` and `SIGN_PFX_PASSWORD` before running the installer script. Without either, everything still builds, unsigned.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Only builds made by this repository's GitHub Actions from its source are signed, and every release is approved by hand before signing.
+
+- Committers and reviewers: [@tuvshinorg](https://github.com/tuvshinorg)
+- Approvers: [@tuvshinorg](https://github.com/tuvshinorg)
+
+## Privacy policy
+
+aegidub sends data only to services you configure or ask it to use:
+
+- Subtitle text to the AI model endpoint you set (by default `api.openai.com`), when you run an AI command.
+- Lines and voice settings to ElevenLabs (`api.elevenlabs.io`), when you cast voices or generate speech.
+- A request to the GitHub API for this repository's releases, when it checks for updates.
+- A download of the voice separation model from Hugging Face, once, the first time it is needed.
+
+Nothing else about you or your computer is collected or sent.
 
 To change the logo, replace `docs/art-sources/aegidubLogo.png` and run `python tools/generate_logo_assets.py`.
 
