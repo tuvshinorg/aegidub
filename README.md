@@ -49,6 +49,8 @@ aegidub keeps all of Aegisub. If you know Aegisub, you know aegidub:
 
 Download `aegidub-…-x64-setup.exe` from the [releases](https://github.com/tuvshinorg/aegidub/releases) and run it. The installer installs the Microsoft Visual C++ runtime itself if the computer doesn't have a recent one.
 
+The installer isn't code-signed yet, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**.
+
 Requirements:
 
 - Windows 10 or 11, 64-bit, with a processor that supports AVX2 (most made since 2013) for the built-in voice separator.

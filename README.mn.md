@@ -49,6 +49,8 @@ aegidub нь Aegisub-ийн бүх боломжийг хэвээр хадгал�
 
 [Releases](https://github.com/tuvshinorg/aegidub/releases) хуудаснаас `aegidub-…-x64-setup.exe`-г татаж ажиллуулна. Компьютерт Microsoft Visual C++ runtime байхгүй эсвэл хуучин бол installer өөрөө суулгана.
 
+Installer одоогоор кодын гарын үсэггүй тул Windows "Windows protected your PC" гэж анхааруулж магадгүй. **More info**, дараа нь **Run anyway** дээр дарна уу.
+
 Шаардлага:
 
 - Windows 10 эсвэл 11, 64-bit. Дотоод хоолой салгагчид AVX2 дэмждэг процессор хэрэгтэй (2013 оноос хойшхи ихэнх процессор).
