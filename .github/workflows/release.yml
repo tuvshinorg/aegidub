@@ -103,7 +103,7 @@ jobs:
 
       - name: Use the signed aegidub.exe
         if: vars.SIGNPATH_ORGANIZATION_ID != ''
-        run: Copy-Item signed-exeegidub.exe build-releaseegidub.exe -Force
+        run: Copy-Item signed-exe/aegidub.exe build-release/aegidub.exe -Force
 
       - name: Prepare the signing certificate
         env:
@@ -148,7 +148,7 @@ jobs:
 
       - name: Use the signed installer
         if: vars.SIGNPATH_ORGANIZATION_ID != ''
-        run: Copy-Item signed-installeregidub-*-setup.exe build-release\ -Force
+        run: Copy-Item signed-installer/aegidub-*-setup.exe build-release/ -Force
 
       - name: Remove the certificate
         if: always()
