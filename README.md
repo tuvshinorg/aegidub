@@ -4,6 +4,8 @@
 
 It was made for dubbing films and series into **Mongolian**, but works for any language your AI model and ElevenLabs voices support.
 
+[![Download for Windows](https://img.shields.io/github/v/release/tuvshinorg/aegidub?label=Download%20for%20Windows&logo=windows&style=for-the-badge)](https://github.com/tuvshinorg/aegidub/releases/latest)
+
 [Монгол хэлээр унших](README.mn.md)
 
 ## What's the same as Aegisub

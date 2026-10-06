@@ -4,6 +4,8 @@
 
 Кино, цувралыг **монгол хэл** рүү дубляж хийхэд зориулагдсан. Гэхдээ таны AI загвар болон ElevenLabs-ийн хоолой дэмждэг ямар ч хэлээр ажиллана.
 
+[![Windows-д татах](https://img.shields.io/github/v/release/tuvshinorg/aegidub?label=Windows-д%20татах&logo=windows&style=for-the-badge)](https://github.com/tuvshinorg/aegidub/releases/latest)
+
 [Read in English](README.md)
 
 ## Aegisub-тай ижил тал
