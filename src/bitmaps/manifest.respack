@@ -271,6 +271,11 @@ button/font_collector_button_24.png
 button/font_collector_button_32.png
 button/font_collector_button_48.png
 button/font_collector_button_64.png
+button/hardsub_extract_button_16.png
+button/hardsub_extract_button_24.png
+button/hardsub_extract_button_32.png
+button/hardsub_extract_button_48.png
+button/hardsub_extract_button_64.png
 button/irc_button_16.png
 button/irc_button_24.png
 button/irc_button_32.png
@@ -306,6 +311,11 @@ button/languages_menu_24.png
 button/languages_menu_32.png
 button/languages_menu_48.png
 button/languages_menu_64.png
+button/mcp_server_button_16.png
+button/mcp_server_button_24.png
+button/mcp_server_button_32.png
+button/mcp_server_button_48.png
+button/mcp_server_button_64.png
 button/new_toolbutton_16.png
 button/new_toolbutton_24.png
 button/new_toolbutton_32.png
@@ -431,6 +441,11 @@ button/snap_subs_to_scene_24.png
 button/snap_subs_to_scene_32.png
 button/snap_subs_to_scene_48.png
 button/snap_subs_to_scene_64.png
+button/soft_subs_export_button_16.png
+button/soft_subs_export_button_24.png
+button/soft_subs_export_button_32.png
+button/soft_subs_export_button_48.png
+button/soft_subs_export_button_64.png
 button/speakers_detect_button_16.png
 button/speakers_detect_button_24.png
 button/speakers_detect_button_32.png

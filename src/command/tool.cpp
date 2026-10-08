@@ -65,6 +65,7 @@ struct tool_export final : public Command {
 
 struct tool_mcp_server final : public Command {
 	CMD_NAME("tool/mcp_server")
+	CMD_ICON(mcp_server_button)
 	STR_MENU("AI A&gents (MCP Server)...")
 	STR_DISP("AI Agents (MCP Server)")
 	STR_HELP("Let AI agents such as Claude Code and Codex read and edit the subtitles while aegidub is open")

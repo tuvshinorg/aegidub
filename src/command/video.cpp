@@ -256,6 +256,7 @@ struct video_detach final : public validator_video_loaded {
 
 struct video_extract_hardsubs final : public validator_video_loaded {
 	CMD_NAME("video/extract_hardsubs")
+	CMD_ICON(hardsub_extract_button)
 	STR_MENU("E&xtract Burned-in Subtitles...")
 	STR_DISP("Extract Burned-in Subtitles")
 	STR_HELP("Read the subtitles burned into the video's picture with OCR and turn them into editable lines")
@@ -268,6 +269,7 @@ struct video_extract_hardsubs final : public validator_video_loaded {
 
 struct video_export_soft_subs final : public validator_video_loaded {
 	CMD_NAME("video/export_soft_subs")
+	CMD_ICON(soft_subs_export_button)
 	STR_MENU("Export Video with &Soft Subtitles...")
 	STR_DISP("Export Video with Soft Subtitles")
 	STR_HELP("Save a copy of the video with the subtitles as a track that can be switched on and off")
