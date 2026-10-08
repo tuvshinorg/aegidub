@@ -81,6 +81,9 @@ Source: "{#SOURCE_ROOT}\automation\autoload\*"; DestDir: "{app}\automation\autol
 Source: "{#SOURCE_ROOT}\automation\include\*"; DestDir: "{app}\automation\include"; Excludes: "meson.build"; Flags: ignoreversion recursesubdirs
 Source: "{#SOURCE_ROOT}\automation\demos\*"; DestDir: "{app}\automation\demos"; Excludes: "meson.build"; Flags: ignoreversion recursesubdirs
 
+; pyannote's speaker detection model (CC-BY-4.0), so users need no Hugging Face token
+Source: "{#SOURCE_ROOT}\packages\models\speaker-diarization-community-1\*"; DestDir: "{app}\models\speaker-diarization-community-1"; Flags: ignoreversion recursesubdirs
+
 ; Spell checking dictionary, if it was downloaded
 Source: "{#DEPS_DIR}\dictionaries\*"; DestDir: "{app}\dictionaries"; Flags: ignoreversion skipifsourcedoesntexist
 

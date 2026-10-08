@@ -14,6 +14,7 @@
 
 #include "voice_separator.h"
 
+#include "dub_render.h"
 #include "external_process.h"
 #include "http_request.h"
 #include "options.h"
@@ -29,10 +30,12 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <sstream>
 #include <thread>
 #include <vector>
 
@@ -417,6 +420,22 @@ bool separate_python(std::string const& python, agi::fs::path const& input, agi:
 	if (result.cancelled) throw voice_separator::Cancelled();
 	return result.exit_code == 0 && result.tail.find("DONE") != std::string::npos;
 }
+
+// ---------------------------------------------------------------------------
+// Separations kept for reuse
+
+/// Identifies a video file well enough to know when cached audio is stale
+std::string video_fingerprint(agi::fs::path const& video) {
+	std::ostringstream ss;
+	ss << video.string() << '\n' << agi::fs::Size(video) << '\n'
+	   << agi::fs::ModifiedTime(video).time_since_epoch().count();
+	return ss.str();
+}
+
+std::string read_file(agi::fs::path const& path) {
+	std::ifstream in(path, std::ios::binary);
+	return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
 }
 
 namespace voice_separator {
@@ -437,5 +456,38 @@ std::string Separate(agi::fs::path const& input, agi::fs::path const& vocals, ag
 
 	separate_builtin(input, vocals, background, progress, cancelled);
 	return "CPU (built-in)";
+}
+
+bool VideoSeparated(agi::fs::path const& video, agi::fs::path const& work_dir) {
+	auto stamp = agi::fs::path(work_dir / "source.txt");
+	return agi::fs::FileExists(agi::fs::path(work_dir / "vocals.wav"))
+		&& agi::fs::FileExists(agi::fs::path(work_dir / "background.wav"))
+		&& agi::fs::FileExists(stamp)
+		&& read_file(stamp) == video_fingerprint(video);
+}
+
+std::string SeparateVideo(agi::fs::path const& video, agi::fs::path const& work_dir,
+	std::function<void(int step, std::string const& message, double fraction)> const& progress,
+	std::function<bool()> const& cancelled)
+{
+	if (VideoSeparated(video, work_dir)) return "";
+
+	agi::fs::CreateDirectory(work_dir);
+	auto original = agi::fs::path(work_dir / "original.wav");
+	progress(0, "", 0);
+	try {
+		dub_render::ExtractAudio(video, original, [&](double f) { progress(0, "", f); }, cancelled);
+	}
+	catch (dub_render::Cancelled const&) {
+		throw Cancelled();
+	}
+
+	auto engine = Separate(original, agi::fs::path(work_dir / "vocals.wav"), agi::fs::path(work_dir / "background.wav"),
+		work_dir, [&](std::string const& message, double f) { progress(1, message, f); }, cancelled);
+
+	// Remember which video this separation belongs to
+	std::ofstream(agi::fs::path(work_dir / "source.txt"), std::ios::binary | std::ios::trunc) << video_fingerprint(video);
+	agi::fs::Remove(original);
+	return engine;
 }
 }

@@ -50,4 +50,17 @@ namespace voice_separator {
 		agi::fs::path const& work_dir,
 		ProgressFn const& progress,
 		std::function<bool()> const& cancelled);
+
+	/// Has SeparateVideo already split this video into work_dir?
+	bool VideoSeparated(agi::fs::path const& video, agi::fs::path const& work_dir);
+
+	/// Split a video's soundtrack into work_dir/vocals.wav and
+	/// work_dir/background.wav, unless an earlier run already did
+	/// @param progress Called with step 0 while reading the video's sound and
+	///                 step 1 while separating it
+	/// @return How it was done, or empty if the earlier separation was reused
+	/// @throws Cancelled if cancelled, Error or dub_render::Error on failure
+	std::string SeparateVideo(agi::fs::path const& video, agi::fs::path const& work_dir,
+		std::function<void(int step, std::string const& message, double fraction)> const& progress,
+		std::function<bool()> const& cancelled);
 }

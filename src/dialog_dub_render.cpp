@@ -30,9 +30,6 @@
 
 #include <libaegisub/fs.h>
 
-#include <fstream>
-#include <sstream>
-
 #include <wx/button.h>
 #include <wx/checkbox.h>
 #include <wx/dialog.h>
@@ -48,19 +45,6 @@
 namespace {
 /// Dialog return code asking to generate the dub track and reopen
 const int generate_code = wxID_HIGHEST + 1;
-
-/// Identifies a video file well enough to know when cached audio is stale
-std::string video_fingerprint(agi::fs::path const& video) {
-	std::ostringstream ss;
-	ss << video.string() << '\n' << agi::fs::Size(video) << '\n'
-	   << agi::fs::ModifiedTime(video).time_since_epoch().count();
-	return ss.str();
-}
-
-std::string read_file(agi::fs::path const& path) {
-	std::ifstream in(path, std::ios::binary);
-	return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-}
 
 struct DialogDubRender {
 	wxDialog d;
@@ -179,11 +163,7 @@ DialogDubRender::DialogDubRender(agi::Context *c)
 }
 
 bool DialogDubRender::SeparationCached() const {
-	auto stamp = agi::fs::path(work_dir / "source.txt");
-	return agi::fs::FileExists(agi::fs::path(work_dir / "vocals.wav"))
-		&& agi::fs::FileExists(agi::fs::path(work_dir / "background.wav"))
-		&& agi::fs::FileExists(stamp)
-		&& read_file(stamp) == video_fingerprint(video);
+	return voice_separator::VideoSeparated(video, work_dir);
 }
 
 void DialogDubRender::UpdateVolumeLabel() {
@@ -230,7 +210,6 @@ void DialogDubRender::OnRender(wxCommandEvent&) {
 	settings.keep_original_track = keep_track->GetValue();
 	settings.output = out_path;
 
-	const bool cached = SeparationCached();
 	std::string error, engine;
 	bool cancelled = false;
 
@@ -246,21 +225,14 @@ void DialogDubRender::OnRender(wxCommandEvent&) {
 		};
 
 		try {
-			if (!cached) {
-				agi::fs::CreateDirectory(work_dir);
-				auto original = agi::fs::path(work_dir / "original.wav");
-				show(from_wx(_("Step 1 of 3: reading the video's sound...")), 0);
-				dub_render::ExtractAudio(video, original,
-					[&](double f) { show(from_wx(_("Step 1 of 3: reading the video's sound...")), f); }, is_cancelled);
-
-				engine = voice_separator::Separate(original, settings.original_voices, settings.background, work_dir,
-					[&](std::string const& message, double f) { show(from_wx(_("Step 2 of 3: ")) + message, f); },
-					is_cancelled);
-
-				// Remember which video this separation belongs to
-				std::ofstream(agi::fs::path(work_dir / "source.txt"), std::ios::binary | std::ios::trunc) << video_fingerprint(video);
-				agi::fs::Remove(original);
-			}
+			engine = voice_separator::SeparateVideo(video, work_dir,
+				[&](int step, std::string const& message, double f) {
+					if (step == 0)
+						show(from_wx(_("Step 1 of 3: reading the video's sound...")), f);
+					else
+						show(from_wx(_("Step 2 of 3: ")) + message, f);
+				},
+				is_cancelled);
 
 			show(from_wx(_("Step 3 of 3: mixing and writing the video...")), 0);
 			dub_render::Render(settings,

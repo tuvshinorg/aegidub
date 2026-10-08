@@ -431,7 +431,10 @@ void AI_Translation(wxTreebook *book, Preferences *parent) {
 	p->OptionAdd(translation, _("Lines per request"), "Tool/AI Translation/Batch Size", { .min = 1, .max = 200 });
 	p->OptionAdd(translation, _("Extra instructions"), "Tool/AI Translation/Instructions")->SetMinSize(text_size);
 
-	auto note = new wxStaticText(p, wxID_ANY, _("The API key is stored unencrypted in aegidub's config file. Leave it empty to use the OPENAI_API_KEY environment variable instead."));
+	auto speakers = p->PageSizer(_("Detect Speakers from Audio"));
+	p->OptionAdd(speakers, _("Hugging Face token (only if the model isn't installed)"), "Tool/Speaker Detection/Hugging Face Token")->SetMinSize(text_size);
+
+	auto note = new wxStaticText(p, wxID_ANY, _("The API key and token are stored unencrypted in aegidub's config file. Leave the API key empty to use the OPENAI_API_KEY environment variable instead."));
 	p->sizer->Fit(p);
 	note->Wrap(400);
 	p->sizer->Add(note, 0, wxALL, 5);

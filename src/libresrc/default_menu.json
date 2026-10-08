@@ -47,6 +47,7 @@
         { "command" : "tool/translate/original/store" },
         {},
         { "command" : "tool/speakers/detect/all" },
+        { "command" : "tool/speakers/detect/audio" },
         { "command" : "tool/speakers/detect/selected" },
         { "command" : "tool/voice/cast" },
         {},

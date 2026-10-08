@@ -603,6 +603,9 @@
 			"Language" : "en",
 			"Use GPU If Available" : true
 		},
+		"Speaker Detection" : {
+			"Hugging Face Token" : ""
+		},
 		"Soft Subtitles" : {
 			"Keep Existing" : true,
 			"Language" : "und"

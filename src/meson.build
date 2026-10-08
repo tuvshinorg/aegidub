@@ -134,6 +134,7 @@ aegisub_src = files(
     'series_cast.cpp',
     'sha256.cpp',
     'soft_subs.cpp',
+    'speaker_diarization.cpp',
     'spellchecker.cpp',
     'spline.cpp',
     'spline_curve.cpp',
