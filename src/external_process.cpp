@@ -131,20 +131,37 @@ Result Run(std::vector<std::string> const& args,
 	si.hStdOutput = write_pipe;
 	si.hStdError = write_pipe;
 
+	// Programs such as Python start helper processes of their own; a job
+	// takes them down too when cancelled, or if they outlive the program
+	HANDLE job = CreateJobObjectW(nullptr, nullptr);
+	if (job) {
+		JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+		limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+		SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+	}
+
 	PROCESS_INFORMATION pi{};
 	BOOL started = CreateProcessW(nullptr, command_line.data(), nullptr, nullptr, TRUE,
-		CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+		CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr, nullptr, &si, &pi);
 	CloseHandle(write_pipe);
 	if (!started) {
+		DWORD error = GetLastError();
 		CloseHandle(read_pipe);
-		throw Error("Could not start " + args[0] + " (Windows error " + std::to_string(GetLastError()) + ")");
+		if (job) CloseHandle(job);
+		throw Error("Could not start " + args[0] + " (Windows error " + std::to_string(error) + ")");
 	}
+	if (job && !AssignProcessToJobObject(job, pi.hProcess)) {
+		CloseHandle(job);
+		job = nullptr;
+	}
+	ResumeThread(pi.hThread);
 
 	Result result;
 	LineSplitter lines(on_line);
 	char buffer[4096];
 	for (;;) {
 		if (cancelled && cancelled()) {
+			if (job) TerminateJobObject(job, 1);
 			TerminateProcess(pi.hProcess, 1);
 			result.cancelled = true;
 			break;
@@ -179,6 +196,7 @@ Result Run(std::vector<std::string> const& args,
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 	CloseHandle(read_pipe);
+	if (job) CloseHandle(job);
 
 	result.exit_code = static_cast<int>(exit_code);
 	result.tail = lines.finish();

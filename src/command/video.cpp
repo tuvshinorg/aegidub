@@ -254,6 +254,30 @@ struct video_detach final : public validator_video_loaded {
 	}
 };
 
+struct video_extract_hardsubs final : public validator_video_loaded {
+	CMD_NAME("video/extract_hardsubs")
+	STR_MENU("E&xtract Burned-in Subtitles...")
+	STR_DISP("Extract Burned-in Subtitles")
+	STR_HELP("Read the subtitles burned into the video's picture with OCR and turn them into editable lines")
+
+	void operator()(agi::Context *c) override {
+		c->videoController->Stop();
+		ShowHardsubExtractDialog(c);
+	}
+};
+
+struct video_export_soft_subs final : public validator_video_loaded {
+	CMD_NAME("video/export_soft_subs")
+	STR_MENU("Export Video with &Soft Subtitles...")
+	STR_DISP("Export Video with Soft Subtitles")
+	STR_HELP("Save a copy of the video with the subtitles as a track that can be switched on and off")
+
+	void operator()(agi::Context *c) override {
+		c->videoController->Stop();
+		ShowSoftSubsExportDialog(c);
+	}
+};
+
 struct video_details final : public validator_video_loaded {
 	CMD_NAME("video/details")
 	CMD_ICON(show_video_details_menu)
@@ -783,6 +807,8 @@ namespace cmd {
 		reg(std::make_unique<video_cycle_subtitles_provider>());
 		reg(std::make_unique<video_detach>());
 		reg(std::make_unique<video_details>());
+		reg(std::make_unique<video_export_soft_subs>());
+		reg(std::make_unique<video_extract_hardsubs>());
 		reg(std::make_unique<video_focus_seek>());
 		reg(std::make_unique<video_frame_copy>());
 		reg(std::make_unique<video_frame_copy_raw>());

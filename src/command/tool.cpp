@@ -63,6 +63,17 @@ struct tool_export final : public Command {
 	}
 };
 
+struct tool_mcp_server final : public Command {
+	CMD_NAME("tool/mcp_server")
+	STR_MENU("AI A&gents (MCP Server)...")
+	STR_DISP("AI Agents (MCP Server)")
+	STR_HELP("Let AI agents such as Claude Code and Codex read and edit the subtitles while aegidub is open")
+
+	void operator()(agi::Context *c) override {
+		ShowMcpServerDialog(c);
+	}
+};
+
 struct tool_font_collector final : public Command {
 	CMD_NAME("tool/font_collector")
 	CMD_ICON(font_collector_button)
@@ -267,6 +278,7 @@ namespace cmd {
 		reg(std::make_unique<tool_export>());
 		reg(std::make_unique<tool_font_collector>());
 		reg(std::make_unique<tool_line_select>());
+		reg(std::make_unique<tool_mcp_server>());
 		reg(std::make_unique<tool_resampleres>());
 		reg(std::make_unique<tool_style_assistant>());
 		reg(std::make_unique<tool_styling_assistant_commit>());

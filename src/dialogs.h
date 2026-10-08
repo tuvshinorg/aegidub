@@ -78,4 +78,7 @@ void ShowTimingProcessorDialog(agi::Context *c);
 void ShowVideoDetailsDialog(agi::Context *c);
 void ShowVoiceCastDialog(agi::Context *c);
 void ShowDubRenderDialog(agi::Context *c);
+void ShowHardsubExtractDialog(agi::Context *c);
+void ShowSoftSubsExportDialog(agi::Context *c);
+void ShowMcpServerDialog(agi::Context *c);
 void ShowProjectsDialog(agi::Context *c);

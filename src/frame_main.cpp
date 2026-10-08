@@ -48,6 +48,7 @@
 #include "dialog_detached_video.h"
 #include "dialog_manager.h"
 #include "libresrc/libresrc.h"
+#include "mcp_server.h"
 #include "main.h"
 #include "options.h"
 #include "project.h"
@@ -159,10 +160,14 @@ FrameMain::FrameMain()
 	Show();
 	SetDisplayMode(1, 1);
 
+	StartupLog("Start the MCP server if enabled");
+	mcp_server::Update(context.get());
+
 	StartupLog("Leaving FrameMain constructor");
 }
 
 FrameMain::~FrameMain () {
+	mcp_server::Stop();
 	context->project->CloseAudio();
 	context->project->CloseVideo();
 

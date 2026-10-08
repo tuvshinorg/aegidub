@@ -42,3 +42,7 @@ src/MatroskaParser.(c|h)
 universalchardet/
  - MPL 1.1
 
+Extract Burned-in Subtitles downloads video-subtitle-extractor
+(https://github.com/YaoFANGUK/video-subtitle-extractor) from GitHub on first
+use. It is licensed under the Apache License 2.0, which is downloaded with it,
+and none of it is included in aegidub.

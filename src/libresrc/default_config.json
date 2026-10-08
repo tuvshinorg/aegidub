@@ -595,6 +595,23 @@
 			"Remaster" : true,
 			"Use GPU If Available" : true
 		},
+		"Hardsub Extract" : {
+			"Area Bottom" : 0.99,
+			"Area Left" : 0.05,
+			"Area Right" : 0.95,
+			"Area Top" : 0.78,
+			"Language" : "en",
+			"Mode" : "fast",
+			"Use GPU If Available" : true
+		},
+		"Soft Subtitles" : {
+			"Keep Existing" : true,
+			"Language" : "und"
+		},
+		"MCP Server" : {
+			"Enabled" : false,
+			"Port" : 8750
+		},
 		"Projects" : {
 			"Folder" : "",
 			"Show On Startup" : true

@@ -68,9 +68,11 @@ aegisub_src = files(
     'dialog_export.cpp',
     'dialog_export_ebu3264.cpp',
     'dialog_fonts_collector.cpp',
+    'dialog_hardsub_extract.cpp',
     'dialog_jumpto.cpp',
     'dialog_kara_timing_copy.cpp',
     'dialog_log.cpp',
+    'dialog_mcp_server.cpp',
     'dialog_paste_over.cpp',
     'dialog_progress.cpp',
     'dialog_projects.cpp',
@@ -80,6 +82,7 @@ aegisub_src = files(
     'dialog_selected_choices.cpp',
     'dialog_selection.cpp',
     'dialog_shift_times.cpp',
+    'dialog_soft_subs.cpp',
     'dialog_spellchecker.cpp',
     'dialog_style_editor.cpp',
     'dialog_style_manager.cpp',
@@ -104,6 +107,7 @@ aegisub_src = files(
     'gl_text.cpp',
     'gl_wrap.cpp',
     'grid_column.cpp',
+    'hardsub_extractor.cpp',
     'help_button.cpp',
     'hotkey.cpp',
     'hotkey_data_view_model.cpp',
@@ -113,6 +117,7 @@ aegisub_src = files(
     'line_extradata.cpp',
     'line_spoken.cpp',
     'main.cpp',
+    'mcp_server.cpp',
     'menu.cpp',
     'mkv_wrap.cpp',
     'openai_client.cpp',
@@ -128,6 +133,7 @@ aegisub_src = files(
     'selection_controller.cpp',
     'series_cast.cpp',
     'sha256.cpp',
+    'soft_subs.cpp',
     'spellchecker.cpp',
     'spline.cpp',
     'spline_curve.cpp',
@@ -206,6 +212,9 @@ elif host_machine.system() == 'windows'
     else
         error('Missing Windows SDK GDI Library (wingdi.h / gdi32.lib)')
     endif
+    # Sockets for the MCP server
+    deps += cc.find_library('ws2_32', required: true)
+    deps += cc.find_library('mswsock', required: true)
     if cc.has_header('dwrite.h')
         deps += cc.find_library('dwrite', required: true)
     else
