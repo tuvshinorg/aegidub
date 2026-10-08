@@ -52,10 +52,29 @@ namespace {
 const int thumb_width = 256;
 const int thumb_height = 144;
 
+agi::fs::path documents_projects() {
+	return agi::fs::path(from_wx(wxStandardPaths::Get().GetDocumentsDir())) / "aegidub Projects";
+}
+
 agi::fs::path projects_root() {
 	std::string folder = OPT_GET("Tool/Projects/Folder")->GetString();
 	if (!folder.empty()) return agi::fs::path(folder);
-	return agi::fs::path(from_wx(wxStandardPaths::Get().GetDocumentsDir())) / "aegidub Projects";
+	return documents_projects();
+}
+
+/// On the first run, offer to keep projects on the desktop. Installs that
+/// already have projects in Documents keep them there without asking.
+void ask_projects_folder(wxWindow *parent) {
+	if (!OPT_GET("Tool/Projects/Folder")->GetString().empty()) return;
+	if (agi::fs::DirectoryExists(documents_projects())) return;
+
+	auto desktop = agi::fs::path(from_wx(wxStandardPaths::Get().GetUserDir(wxStandardPaths::Dir_Desktop))) / "aegidub Projects";
+	wxMessageDialog ask(parent,
+		fmt_tl("Keep your projects on the desktop?\n\nThey will be saved in:\n%s\n\nYou can change this later with Projects folder.", desktop.string()),
+		_("Projects folder"), wxOK | wxCANCEL | wxICON_QUESTION);
+	ask.SetOKCancelLabels(_("Use the desktop"), _("Use Documents"));
+	auto chosen = ask.ShowModal() == wxID_OK ? desktop : documents_projects();
+	OPT_SET("Tool/Projects/Folder")->SetString(chosen.string());
 }
 
 std::string format_time(int64_t t) {
@@ -146,6 +165,7 @@ DialogProjects::DialogProjects(agi::Context *c)
 	open_file->Bind(wxEVT_BUTTON, &DialogProjects::OnOpenFile, this);
 	folder->Bind(wxEVT_BUTTON, &DialogProjects::OnChooseFolder, this);
 
+	ask_projects_folder(c->parent);
 	Reload();
 }
 
