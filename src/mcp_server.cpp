@@ -543,12 +543,10 @@ std::vector<Tool> make_tools() {
 
 	tools.push_back({"extract_burned_in_subtitles",
 		"Read subtitles burned into the open video's picture with OCR (video-subtitle-extractor) and put them in the subtitle file. Starts a job and returns its job_id; poll get_job until it finishes. The first run downloads and installs the OCR engine, which takes about 10 minutes. The area is where the subtitles appear, as fractions of the frame from the top-left corner; use get_video_frame to see it. OCR makes mistakes, so read the result through.",
-		R"JSON({"type":"object","properties":{"language":{"type":"string","description":"video-subtitle-extractor language code: en, ch, chinese_cht, japan, korean, mn, ru, uk, ar, fa, hi, ta, te, kn, de, fr, es, pt, it, nl, pl, tr, vi, id, ms, ..."},"mode":{"type":"string","enum":["fast","accurate"]},"area":{"type":"object","properties":{"top":{"type":"number"},"bottom":{"type":"number"},"left":{"type":"number"},"right":{"type":"number"}}},"use_gpu":{"type":"boolean"},"replace":{"type":"boolean","default":true,"description":"Replace the current lines; false adds after them"}}})JSON",
+		R"JSON({"type":"object","properties":{"language":{"type":"string","description":"video-subtitle-extractor language code: en, ch, chinese_cht, japan, korean, mn, ru, uk, ar, fa, hi, ta, te, kn, de, fr, es, pt, it, nl, pl, tr, vi, id, ms, ..."},"area":{"type":"object","properties":{"top":{"type":"number"},"bottom":{"type":"number"},"left":{"type":"number"},"right":{"type":"number"}}},"use_gpu":{"type":"boolean"},"replace":{"type":"boolean","default":true,"description":"Replace the current lines; false adds after them"}}})JSON",
 		[](js::object const& args) {
 			hardsub_extractor::Settings s;
 			s.language = string_arg(args, "language", OPT_GET("Tool/Hardsub Extract/Language")->GetString());
-			s.mode = string_arg(args, "mode", OPT_GET("Tool/Hardsub Extract/Mode")->GetString());
-			if (s.mode != "fast" && s.mode != "accurate") throw ToolError("mode must be fast or accurate");
 			s.gpu = bool_arg(args, "use_gpu", OPT_GET("Tool/Hardsub Extract/Use GPU If Available")->GetBool());
 			s.top = OPT_GET("Tool/Hardsub Extract/Area Top")->GetDouble();
 			s.bottom = OPT_GET("Tool/Hardsub Extract/Area Bottom")->GetDouble();

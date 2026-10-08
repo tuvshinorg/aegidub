@@ -601,7 +601,6 @@
 			"Area Right" : 0.95,
 			"Area Top" : 0.78,
 			"Language" : "en",
-			"Mode" : "fast",
 			"Use GPU If Available" : true
 		},
 		"Soft Subtitles" : {

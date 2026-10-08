@@ -178,14 +178,8 @@ bool ask_settings(agi::Context *c, hardsub_extractor::Settings& s) {
 	}
 	if (language->GetSelection() == wxNOT_FOUND)
 		language->SetSelection(0);
-	auto mode = new wxChoice(&d, -1);
-	mode->Append(_("Fast"));
-	mode->Append(_("Accurate (slower)"));
-	mode->SetSelection(OPT_GET("Tool/Hardsub Extract/Mode")->GetString() == "accurate" ? 1 : 0);
 	row->Add(new wxStaticText(&d, -1, _("Language:")), wxSizerFlags().CenterVertical().Border(wxRIGHT, 4));
-	row->Add(language, wxSizerFlags().CenterVertical().Border(wxRIGHT, 16));
-	row->Add(new wxStaticText(&d, -1, _("Mode:")), wxSizerFlags().CenterVertical().Border(wxRIGHT, 4));
-	row->Add(mode, wxSizerFlags().CenterVertical());
+	row->Add(language, wxSizerFlags().CenterVertical());
 	sizer->Add(row, wxSizerFlags().Border(wxALL, 8));
 
 	auto gpu = new wxCheckBox(&d, -1, _("Use the GPU when there is one (DirectML)"));
@@ -217,7 +211,6 @@ bool ask_settings(agi::Context *c, hardsub_extractor::Settings& s) {
 	s.left = picker->Left();
 	s.right = picker->Right();
 	s.language = languages[language->GetSelection()].code;
-	s.mode = mode->GetSelection() == 1 ? "accurate" : "fast";
 	s.gpu = gpu->GetValue();
 
 	OPT_SET("Tool/Hardsub Extract/Area Top")->SetDouble(s.top);
@@ -225,7 +218,6 @@ bool ask_settings(agi::Context *c, hardsub_extractor::Settings& s) {
 	OPT_SET("Tool/Hardsub Extract/Area Left")->SetDouble(s.left);
 	OPT_SET("Tool/Hardsub Extract/Area Right")->SetDouble(s.right);
 	OPT_SET("Tool/Hardsub Extract/Language")->SetString(s.language);
-	OPT_SET("Tool/Hardsub Extract/Mode")->SetString(s.mode);
 	OPT_SET("Tool/Hardsub Extract/Use GPU If Available")->SetBool(s.gpu);
 	return true;
 }

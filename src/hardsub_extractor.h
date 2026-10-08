@@ -49,8 +49,6 @@ namespace hardsub_extractor {
 		agi::fs::path output;
 		/// A video-subtitle-extractor language code, e.g. "en" or "ch"
 		std::string language;
-		/// "fast" or "accurate"
-		std::string mode;
 		bool gpu = true;
 		/// The area holding the subtitles, as fractions of the frame size
 		double top = 0, bottom = 1, left = 0, right = 1;

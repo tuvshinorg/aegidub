@@ -377,7 +377,9 @@ void Extract(Settings const& s, ProgressFn const& progress, std::function<void(s
 	};
 	progress("Reading the subtitles in the video...", 0);
 	run({env_python, "-I", script.string(), in_root("src").string(), s.video.string(), s.output.string(),
-		work_dir.string(), s.language, s.mode, s.gpu ? "1" : "0",
+		// Accurate mode looks for text in every frame, which takes seconds a
+		// frame without an NVIDIA CUDA install of Paddle
+		work_dir.string(), s.language, "fast", s.gpu ? "1" : "0",
 		num(s.top), num(s.bottom), num(s.left), num(s.right)},
 		"Reading the subtitles in the video...", progress, log, cancelled);
 
